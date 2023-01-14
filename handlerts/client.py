@@ -1,21 +1,27 @@
 from aiogram import types, Dispatcher
-import random
 from create_bot import dp, bot
 from keyboards import keyboards_client
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-file = open("resources/quotes/quotes.txt", mode="r", encoding="utf8")
-res = file.read().split('\n')
-file.close()
-quotes = res[::2]
-authors = res[1::2]
+import random
+from typing import List
 
-file2 = open("resources/quotes/quotesCinema.txt", mode="r", encoding="utf8")
-res2 = file2.read().split('\n')
-for i in range(len(res2)):
-    res2[i] = res2[i].replace(' (', "©")
-    res2[i] = res2[i].replace(")", "")
-file2.close()
+
+async def open_file(name: str, directory_in_resourses: str, sep: str) -> List:
+    try:
+        with open(f'resourses/{directory_in_resourses}/{name}') as opened_file:
+            result = [x.strip() for x in opened_file.read().split(sep)]
+            return result
+    except OSError as e:
+        print(e)
+
+
+async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
+    quotes= quotes_list[::2]
+    authors = [x.replace(' (', "©").replace(")", "") for x in quotes_list[1::2]]
+    quotes = zip(quotes, authors)
+    result = [f'{quote[0]} {quote[1]}' for quote in quotes]
+    return result
 
 file3 = open("resources/philosophy_course/Epokha_Marxizma_i_vytekayuschikh_iz_nego_techeniy.txt", mode="r",
              encoding="utf8")
@@ -93,14 +99,19 @@ async def give_quotes(message: types.Message):
 
 @dp.callback_query_handler(text="quotes")
 async def send_quotes(call: types.CallbackQuery):
+    authors_and_quotes = await open_file(name='quotes', directory_in_resourses='quotes', sep='\n')
+    quotes = await format_quotes_from_list(authors_and_quotes)
     random_count = random.randint(0, len(quotes))
-    await call.message.answer(quotes[random_count] + "©" + authors[random_count])
+    await call.message.answer(quotes[random_count])
 
 
+#TODO: выяснить, как избавиться от одинаковости send_quotes и send_cinema_quotes
 @dp.callback_query_handler(text="cinema_quotes")
 async def send_cinema_quotes(call: types.CallbackQuery):
-    random_count = random.randint(0, len(res2))
-    await call.message.answer(res2[random_count])
+    authors_and_quotes = await open_file(name='quotesCinema', directory_in_resourses='quotes', sep='\n')
+    quotes = await format_quotes_from_list(authors_and_quotes)
+    random_count = random.randint(0, len(quotes))
+    await call.message.answer(quotes[random_count])
 
 
 @dp.message_handler(commands="Курс_философии")
