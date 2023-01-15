@@ -7,9 +7,9 @@ import random
 from typing import List
 
 
-async def open_file(name: str, directory_in_resourses: str, sep: str) -> List:
+async def open_file(name: str, directory_in_resources: str, sep: str) -> List:
     try:
-        with open(f'resourses/{directory_in_resourses}/{name}') as opened_file:
+        with open(f'resources/{directory_in_resources}/{name}', encoding='utf8') as opened_file:
             result = [x.strip() for x in opened_file.read().split(sep)]
             return result
     except OSError as e:
@@ -17,21 +17,20 @@ async def open_file(name: str, directory_in_resourses: str, sep: str) -> List:
 
 
 async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
-    quotes= quotes_list[::2]
-    authors = [x.replace(' (', "©").replace(")", "") for x in quotes_list[1::2]]
-    quotes = zip(quotes, authors)
-    result = [f'{quote[0]} {quote[1]}' for quote in quotes]
+    quotes = [x.replace(' (', "©").replace(")", "") for x in quotes_list]
+    result = [quote for quote in quotes]
     return result
 
-theme1 = await open_file('Epokha_Marxizma_i_vytekayuschikh_iz_nego_techeniy.txt', 'philosophy_course', '<new>')
-theme2 = await open_file('Drevnyaya_India_i_Kitay.txt', 'philosophy_course', '<new>')
-theme3 = await open_file('Gumanizm_Molot_Vedm_Erazm.txt', 'philosophy_course', '<new>')
-theme4 = await open_file('Russkaya_filosofia.txt', 'philosophy_course', '<new>')
-theme5 = await open_file('Pozitsivizm.txt', 'philosophy_course', '<new>')
-lit1 = await open_file('obchestvo_i_obsch_otnoshenia.txt', 'literature', '<new>')
-lit2 = await open_file('miroustroystvo.txt', 'literature', '<new>')
-lit3 = await open_file('cogito ergo sum.txt', 'literature', '<new>')
-lit4 = await open_file('samoopredelenie_i_samopoznanie.txt', 'literature', '<new>')
+themes_and_files = {'Эпоха Марксизма': 'Epokha_Marxizma_i_vytekayuschikh_iz_nego_techeniy.txt',
+                    'Древняя Индия и Китая': 'Drevnyaya_India_i_Kitay.txt',
+                    'Гуманизм, Молот Ведьм, Эразм': 'Gumanizm_Molot_Vedm_Erazm.txt',
+                    'Русская философия': 'Russkaya_filosofia.txt',
+                    'Позитивизм': 'Pozitsivizm.txt'}
+
+literature_and_files = {'Общество и общественные отношения': 'obchestvo_i_obsch_otnoshenia.txt',
+                        'Мироустройство': 'miroustroystvo.txt',
+                        'Cogito ergo sum': 'cogito ergo sum.txt',
+                        'Самоопределение и самопознание': 'samoopredelenie_i_samopoznanie.txt'}
 
 
 @dp.message_handler(commands=['start', 'help'])
@@ -68,118 +67,61 @@ async def give_quote(message: types.Message):
 @dp.callback_query_handler(text=["quotes", 'quotesCinema'])
 async def send_quotes(call: types.CallbackQuery):
     type_of_quote = call.data
-    authors_and_quotes = await open_file(name=type_of_quote, directory_in_resourses='quotes', sep='\n')
+    authors_and_quotes = await open_file(name=f'{type_of_quote}.txt', directory_in_resources='quotes', sep='\n')
     quotes = await format_quotes_from_list(authors_and_quotes)
-    random_count = random.randint(0, len(quotes))
+    random_count = random.randint(0, len(quotes)-1)
     await call.message.answer(quotes[random_count])
 
 
 @dp.message_handler(commands="Курс_философии")
 async def give_course(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Эпоха Марксизма", callback_data="topic1"))
-    keyboard.add(types.InlineKeyboardButton(text="Древняя Индия и Китай", callback_data="topic2"))
-    keyboard.add(types.InlineKeyboardButton(text="Гуманизм, Молот Ведьм, Эразм", callback_data="topic3"))
-    keyboard.add(types.InlineKeyboardButton(text="Русская философия", callback_data="topic4"))
-    keyboard.add(types.InlineKeyboardButton(text="Позитивизм", callback_data="topic5"))
+    keyboard.add(types.InlineKeyboardButton(text="Эпоха Марксизма", callback_data="Эпоха Марксизма"))
+    keyboard.add(types.InlineKeyboardButton(text="Древняя Индия и Китай", callback_data="Древняя Индия и Китай"))
+    keyboard.add(types.InlineKeyboardButton(text="Гуманизм, Молот Ведьм, Эразм",
+                                            callback_data="Гуманизм, Молот Ведьм, Эразм"))
+    keyboard.add(types.InlineKeyboardButton(text="Русская философия", callback_data="Русская философия"))
+    keyboard.add(types.InlineKeyboardButton(text="Позитивизм", callback_data="Позитивизм"))
     await message.answer("Выберите тему:", reply_markup=keyboard)
 
 
-def get_headers(theme):
-    headers = [header.split('\n')[0] for header in theme]
-    return headers
+def get_header(theme: str):
+    header = theme.split('\n')[0]
+    return header
 
 
-@dp.callback_query_handler(text="topic1")
-async def topic1(call: types.CallbackQuery):
+@dp.callback_query_handler(text=list(themes_and_files.keys()))
+async def topic(call: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup()
-    theme = await open_file('Epokha_Marxizma_i_vytekayuschikh_iz_nego_techeniy.txt', 'philosophy_course', '<new>')
+    theme_file = themes_and_files[call.data]
+    theme = await open_file(theme_file, 'philosophy_course', '<new>')
     for i in theme:
         temp = i.split('\n')
         keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
-    await call.message.answer("Эпоха Марксизма и вытекающих из него течений:", reply_markup=keyboard)
-
-
-@dp.callback_query_handler(text="topic2")
-async def topic2(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(theme2)):
-        temp = theme2[i].split('\n')
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
-    await call.message.answer("Древняя Индия и Китай:", reply_markup=keyboard)
-
-
-@dp.callback_query_handler(text="topic3")
-async def topic3(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(theme3)):
-        temp = theme3[i].split('\n')
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
-    await call.message.answer("Гуманизм, Молот Ведьм, Эразм:", reply_markup=keyboard)
-
-
-@dp.callback_query_handler(text="topic4")
-async def topic4(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(theme4)):
-        temp = theme4[i].split('\n')
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
-    await call.message.answer("Русская философия:", reply_markup=keyboard)
-
-
-@dp.callback_query_handler(text="topic5")
-async def topic5(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(theme5)):
-        temp = theme5[i].split('\n')
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
-    await call.message.answer("Позитивизм:", reply_markup=keyboard)
+    await call.message.answer(f"{call.data}:", reply_markup=keyboard)
 
 
 @dp.message_handler(commands="Литература")
 async def give_literature(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Общество и общественные отношения", callback_data="litrature1"))
-    keyboard.add(types.InlineKeyboardButton(text="Мироустройство", callback_data="litrature2"))
-    keyboard.add(types.InlineKeyboardButton(text="Cogito ergo sum", callback_data="litrature3"))
-    keyboard.add(types.InlineKeyboardButton(text="Самоопределение и самопознание", callback_data="litrature4"))
+    keyboard.add(types.InlineKeyboardButton(text="Общество и общественные отношения",
+                                            callback_data="Общество и общественные отношения"))
+    keyboard.add(types.InlineKeyboardButton(text="Мироустройство", callback_data="Мироустройство"))
+    keyboard.add(types.InlineKeyboardButton(text="Cogito ergo sum", callback_data="Cogito ergo sum"))
+    keyboard.add(types.InlineKeyboardButton(text="Самоопределение и самопознание",
+                                            callback_data="Самоопределение и самопознание"))
     await message.answer("Выберите тему:", reply_markup=keyboard)
 
 
-@dp.callback_query_handler(text="litrature1")
-async def literature1(call: types.CallbackQuery):
+@dp.callback_query_handler(text=list(literature_and_files.keys()))
+async def literature(call: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(lit1)):
-        temp = lit1[i].split('\n')
+    theme_file = literature_and_files[call.data]
+    literature = await open_file(theme_file, 'literature', '<new>')
+    for i in literature:
+        temp = i.split('\n')
         keyboard.add(types.InlineKeyboardButton(text=temp[0], url=temp[1]))
-    await call.message.answer("Общество и общественные отношения:", reply_markup=keyboard)
-
-
-@dp.callback_query_handler(text="litrature2")
-async def literature1(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(lit2)):
-        temp = lit2[i].split('\n')
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], url=temp[1]))
-    await call.message.answer("Мироустройство:", reply_markup=keyboard)
-
-
-@dp.callback_query_handler(text="litrature3")
-async def literature1(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(lit3)):
-        temp = lit3[i].split('\n')
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], url=temp[1]))
-    await call.message.answer("Cogito ergo sum:", reply_markup=keyboard)
-
-
-@dp.callback_query_handler(text="litrature4")
-async def literature1(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(lit4)):
-        temp = lit4[i].split('\n')
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], url=temp[1]))
-    await call.message.answer("Самоопределение и самопознание:", reply_markup=keyboard)
+    await call.message.answer(f"{call.data}:", reply_markup=keyboard)
 
 
 @dp.message_handler(commands="Общая_информация")
@@ -206,91 +148,25 @@ async def developers(call: types.CallbackQuery):
 # photo = open(path, 'rb')
 # await call.message.answer_photo(photo, caption=theme1[i])
 @dp.callback_query_handler()
-async def lasten(call: types.CallbackQuery):
-    for i in range(len(theme1)):
-        if call.data == get_headers(theme1)[i]:
-            try:
-                path = 'resources/pictures/' + call.data.strip() + '.png'
-                photo = open(path, 'rb')
-                await call.message.answer_photo(photo, caption=theme1[i])
-            except:
+async def give_text_and_pictures(call: types.CallbackQuery):
+    for theme_name in themes_and_files.keys():
+        theme = await open_file(themes_and_files[theme_name], 'philosophy_course', '<new>')
+        for topic in theme:
+            if call.data == get_header(topic):
                 try:
-                    print("Слишком большой caption")
-                    path = 'resources/pictures/' + call.data.strip() + '.png'
+                    path = f'resources/pictures/{call.data}.png'
                     photo = open(path, 'rb')
-                    await call.message.answer_photo(photo)
-                    await call.message.answer(theme1[i])
+                    await call.message.answer_photo(photo, caption=topic)
                 except:
-                    print("Не нашёл картинку")
-                    await call.message.answer(theme1[i])
-
-    for i in range(len(theme2)):
-        if call.data == get_headers(theme2)[i]:
-            try:
-                path = 'resources/pictures/' + call.data.strip() + '.png'
-                photo = open(path, 'rb')
-                await call.message.answer_photo(photo, caption=theme2[i])
-            except:
-                try:
-                    print("Слишком большой caption")
-                    path = 'resources/pictures/' + call.data.strip() + '.png'
-                    photo = open(path, 'rb')
-                    await call.message.answer_photo(photo)
-                    await call.message.answer(theme2[i])
-                except:
-                    print("Не нашёл картинку")
-                    await call.message.answer(theme2[i])
-
-    for i in range(len(theme3)):
-        if call.data == get_headers(theme3)[i]:
-            try:
-                path = 'resources/pictures/' + call.data.strip() + '.png'
-                photo = open(path, 'rb')
-                await call.message.answer_photo(photo, caption=theme3[i])
-            except:
-                try:
-                    print("Слишком большой caption")
-                    path = 'resources/pictures/' + call.data.strip() + '.png'
-                    photo = open(path, 'rb')
-                    await call.message.answer_photo(photo)
-                    await call.message.answer(theme3[i])
-                except:
-                    print("Не нашёл картинку")
-                    await call.message.answer(theme3[i])
-
-    for i in range(len(theme4)):
-        if call.data == get_headers(theme4)[i]:
-            try:
-                path = 'resources/pictures/' + call.data.strip() + '.png'
-                photo = open(path, 'rb')
-                await call.message.answer_photo(photo, caption=theme4[i])
-            except:
-                try:
-                    print("Слишком большой caption")
-                    path = 'resources/pictures/' + call.data.strip() + '.png'
-                    photo = open(path, 'rb')
-                    await call.message.answer_photo(photo)
-                    await call.message.answer(theme4[i])
-                except:
-                    print("Не нашёл картинку")
-                    await call.message.answer(theme4[i])
-
-    for i in range(len(theme5)):
-        if call.data == get_headers(theme5)[i]:
-            try:
-                path = 'resources/pictures/' + call.data.strip() + '.png'
-                photo = open(path, 'rb')
-                await call.message.answer_photo(photo, caption=theme5[i])
-            except:
-                try:
-                    # print("Слишком большой caption")
-                    path = 'resources/pictures/' + call.data.strip() + '.png'
-                    photo = open(path, 'rb')
-                    await call.message.answer_photo(photo)
-                    await call.message.answer(theme5[i])
-                except:
-                    # print("Не нашёл картинку")
-                    await call.message.answer(theme5[i])
+                    try:
+                        print("Слишком большой caption")
+                        path = f'resources/pictures/{call.data}.png'
+                        photo = open(path, 'rb')
+                        await call.message.answer_photo(photo)
+                        await call.message.answer(topic)
+                    except:
+                        print("Не нашёл картинку")
+                        await call.message.answer(topic)
 
 
 @dp.message_handler(commands=['Зачем_ты_нужен?'])
