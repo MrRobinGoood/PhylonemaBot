@@ -22,7 +22,7 @@ async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
     return result
 
 themes_and_files = {'Эпоха Марксизма': 'Epokha_Marxizma_i_vytekayuschikh_iz_nego_techeniy.txt',
-                    'Древняя Индия и Китая': 'Drevnyaya_India_i_Kitay.txt',
+                    'Древняя Индия и Китай': 'Drevnyaya_India_i_Kitay.txt',
                     'Гуманизм, Молот Ведьм, Эразм': 'Gumanizm_Molot_Vedm_Erazm.txt',
                     'Русская философия': 'Russkaya_filosofia.txt',
                     'Позитивизм': 'Pozitsivizm.txt'}
@@ -154,13 +154,13 @@ async def give_text_and_pictures(call: types.CallbackQuery):
         for topic in theme:
             if call.data == get_header(topic):
                 try:
-                    path = f'resources/pictures/{call.data}.png'
+                    path = f'resources/pictures/{call.data.strip()}.png'
                     photo = open(path, 'rb')
                     await call.message.answer_photo(photo, caption=topic)
                 except:
                     try:
                         print("Слишком большой caption")
-                        path = f'resources/pictures/{call.data}.png'
+                        path = f'resources/pictures/{call.data.strip()}.png'
                         photo = open(path, 'rb')
                         await call.message.answer_photo(photo)
                         await call.message.answer(topic)
