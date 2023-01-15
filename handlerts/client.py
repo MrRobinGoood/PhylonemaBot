@@ -45,33 +45,37 @@ async def command_start(message: types.Message):
         await message.reply('Общение с ботом через ЛС, напишите ему:\nt.me/PhilonemaBot')
 
 
-@dp.message_handler(commands="Цитаты")
-async def give_quotes(message: types.Message):
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Любая цитата", callback_data="quotes")).add(
-        types.InlineKeyboardButton(text="Цитата о кино", callback_data="cinema_quotes"))
+@dp.message_handler(commands=["Цитаты", "Курс_философии", "Литература", 'Общая_информация'])
+async def give_category(message: types.Message):
+    if message.text == '/Цитаты':
+        await give_quote(message)
+    elif message.text == '/Курс_философии':
+        await give_course(message)
+    elif message.text == '/Литература':
+        await give_literature(message)
+    else:
+        await give_info(message)
+
+
+@dp.message_handler(commands=["Цитаты"])
+async def give_quote(message: types.Message):
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(types.InlineKeyboardButton(text="Любая цитата", callback_data="quotes"),
+                 types.InlineKeyboardButton(text="Цитата о кино", callback_data="quotesCinema"))
     await message.answer("Выберите какую цитату вы хотите:", reply_markup=keyboard)
 
 
-@dp.callback_query_handler(text="quotes")
+@dp.callback_query_handler(text=["quotes", 'quotesCinema'])
 async def send_quotes(call: types.CallbackQuery):
-    authors_and_quotes = await open_file(name='quotes', directory_in_resourses='quotes', sep='\n')
-    quotes = await format_quotes_from_list(authors_and_quotes)
-    random_count = random.randint(0, len(quotes))
-    await call.message.answer(quotes[random_count])
-
-
-# TODO: выяснить, как избавиться от одинаковости send_quotes и send_cinema_quotes
-@dp.callback_query_handler(text="cinema_quotes")
-async def send_cinema_quotes(call: types.CallbackQuery):
-    authors_and_quotes = await open_file(name='quotesCinema', directory_in_resourses='quotes', sep='\n')
+    type_of_quote = call.data
+    authors_and_quotes = await open_file(name=type_of_quote, directory_in_resourses='quotes', sep='\n')
     quotes = await format_quotes_from_list(authors_and_quotes)
     random_count = random.randint(0, len(quotes))
     await call.message.answer(quotes[random_count])
 
 
 @dp.message_handler(commands="Курс_философии")
-async def give_quotes(message: types.Message):
+async def give_course(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Эпоха Марксизма", callback_data="topic1"))
     keyboard.add(types.InlineKeyboardButton(text="Древняя Индия и Китай", callback_data="topic2"))
@@ -81,7 +85,7 @@ async def give_quotes(message: types.Message):
     await message.answer("Выберите тему:", reply_markup=keyboard)
 
 
-async def get_headers(theme):
+def get_headers(theme):
     headers = [header.split('\n')[0] for header in theme]
     return headers
 
@@ -133,7 +137,7 @@ async def topic5(call: types.CallbackQuery):
 
 
 @dp.message_handler(commands="Литература")
-async def give_quotes(message: types.Message):
+async def give_literature(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Общество и общественные отношения", callback_data="litrature1"))
     keyboard.add(types.InlineKeyboardButton(text="Мироустройство", callback_data="litrature2"))
@@ -179,17 +183,19 @@ async def literature1(call: types.CallbackQuery):
 
 
 @dp.message_handler(commands="Общая_информация")
-async def give_quotes(message: types.Message):
+async def give_info(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="🎬Киноклуб\"Философия кино\"", callback_data="cinema_club"))
     keyboard.add(types.InlineKeyboardButton(text="🧑‍💻👩‍💻Разработчики бота", callback_data="developers"))
     await message.answer("Общая_информация:", reply_markup=keyboard)
+
 
 @dp.callback_query_handler(text="cinema_club")
 async def cinema_club(call: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Вступить в 🎬Киноклуб", url="https://t.me/studactiv_znatie_samgtu/242"))
     await call.message.answer("При поддержке Студактива \"Знание\" СамГТУ, был открыт Киноклуб \"Философия кино\", который ведет активную жизнь под руководством д.ф.н. В.Б.Малышева.", reply_markup=keyboard)
+
 
 @dp.callback_query_handler(text="developers")
 async def developers(call: types.CallbackQuery):
@@ -295,7 +301,4 @@ async def why_need(message: types.Message):
 def register_handler_client(dp: Dispatcher):
     dp.register_message_handler(command_start, commands=['start', 'help'])
     dp.register_message_handler(why_need, commands=['Зачем_ты_нужен?'])
-    dp.register_message_handler(give_quotes, commands=['Цитаты'])
-    dp.register_message_handler(give_quotes, commands=['Курс_философии'])
-    dp.register_message_handler(give_quotes, commands=['Литература'])
-    dp.register_message_handler(give_quotes, commands=['Общая_информация'])
+    dp.register_message_handler(give_category, commands=['Цитаты', 'Курс_философии', 'Литература', 'Общая_информация'])
