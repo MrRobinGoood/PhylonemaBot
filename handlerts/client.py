@@ -23,59 +23,15 @@ async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
     result = [f'{quote[0]} {quote[1]}' for quote in quotes]
     return result
 
-file3 = open("resources/philosophy_course/Epokha_Marxizma_i_vytekayuschikh_iz_nego_techeniy.txt", mode="r",
-             encoding="utf8")
-theme1 = file3.read().split('<new>')
-for i in range(len(theme1)):
-    theme1[i] = theme1[i].strip()
-file3.close()
-
-file4 = open("resources/philosophy_course/Drevnyaya_India_i_Kitay.txt", mode="r", encoding="utf8")
-theme2 = file4.read().split('<new>')
-for i in range(len(theme2)):
-    theme2[i] = theme2[i].strip()
-file4.close()
-
-file5 = open("resources/philosophy_course/Gumanizm_Molot_Vedm_Erazm.txt", mode="r", encoding="utf8")
-theme3 = file5.read().split('<new>')
-for i in range(len(theme3)):
-    theme3[i] = theme3[i].strip()
-file5.close()
-
-file6 = open("resources/philosophy_course/Russkaya_filosofia.txt", mode="r", encoding="utf8")
-theme4 = file6.read().split('<new>')
-for i in range(len(theme4)):
-    theme4[i] = theme4[i].strip()
-file6.close()
-
-file7 = open("resources/philosophy_course/Pozitsivizm.txt", mode="r", encoding="utf8")
-theme5 = file7.read().split('<new>')
-for i in range(len(theme5)):
-    theme5[i] = theme5[i].strip()
-file7.close()
-
-file = open("resources/literature/obchestvo_i_obsch_otnoshenia.txt", mode="r", encoding="utf8")
-lit1 = file.read().split('<new>')
-for i in range(len(lit1)):
-    lit1[i] = lit1[i].strip()
-file.close()
-
-file = open("resources/literature/miroustroystvo.txt", mode="r", encoding="utf8")
-lit2 = file.read().split('<new>')
-for i in range(len(lit2)):
-    lit2[i] = lit2[i].strip()
-file.close()
-
-file = open("resources/literature/cogito ergo sum.txt", mode="r", encoding="utf8")
-lit3 = file.read().split('<new>')
-for i in range(len(lit3)):
-    lit3[i] = lit3[i].strip()
-file.close()
-file = open("resources/literature/samoopredelenie_i_samopoznanie.txt", mode="r", encoding="utf8")
-lit4 = file.read().split('<new>')
-for i in range(len(lit4)):
-    lit4[i] = lit4[i].strip()
-file.close()
+theme1 = await open_file('Epokha_Marxizma_i_vytekayuschikh_iz_nego_techeniy.txt', 'philosophy_course', '<new>')
+theme2 = await open_file('Drevnyaya_India_i_Kitay.txt', 'philosophy_course', '<new>')
+theme3 = await open_file('Gumanizm_Molot_Vedm_Erazm.txt', 'philosophy_course', '<new>')
+theme4 = await open_file('Russkaya_filosofia.txt', 'philosophy_course', '<new>')
+theme5 = await open_file('Pozitsivizm.txt', 'philosophy_course', '<new>')
+lit1 = await open_file('obchestvo_i_obsch_otnoshenia.txt', 'literature', '<new>')
+lit2 = await open_file('miroustroystvo.txt', 'literature', '<new>')
+lit3 = await open_file('cogito ergo sum.txt', 'literature', '<new>')
+lit4 = await open_file('samoopredelenie_i_samopoznanie.txt', 'literature', '<new>')
 
 
 @dp.message_handler(commands=['start', 'help'])
@@ -105,7 +61,7 @@ async def send_quotes(call: types.CallbackQuery):
     await call.message.answer(quotes[random_count])
 
 
-#TODO: выяснить, как избавиться от одинаковости send_quotes и send_cinema_quotes
+# TODO: выяснить, как избавиться от одинаковости send_quotes и send_cinema_quotes
 @dp.callback_query_handler(text="cinema_quotes")
 async def send_cinema_quotes(call: types.CallbackQuery):
     authors_and_quotes = await open_file(name='quotesCinema', directory_in_resourses='quotes', sep='\n')
@@ -121,23 +77,21 @@ async def give_quotes(message: types.Message):
     keyboard.add(types.InlineKeyboardButton(text="Древняя Индия и Китай", callback_data="topic2"))
     keyboard.add(types.InlineKeyboardButton(text="Гуманизм, Молот Ведьм, Эразм", callback_data="topic3"))
     keyboard.add(types.InlineKeyboardButton(text="Русская философия", callback_data="topic4"))
-    keyboard.add(types.InlineKeyboardButton(text="Позицивизм", callback_data="topic5"))
+    keyboard.add(types.InlineKeyboardButton(text="Позитивизм", callback_data="topic5"))
     await message.answer("Выберите тему:", reply_markup=keyboard)
 
 
-def get_headers(theme):
-    headers = []
-    for i in range(len(theme)):
-        temp = theme[i].split('\n')
-        headers.append(temp[0])
+async def get_headers(theme):
+    headers = [header.split('\n')[0] for header in theme]
     return headers
 
 
 @dp.callback_query_handler(text="topic1")
 async def topic1(call: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(theme1)):
-        temp = theme1[i].split('\n')
+    theme = await open_file('Epokha_Marxizma_i_vytekayuschikh_iz_nego_techeniy.txt', 'philosophy_course', '<new>')
+    for i in theme:
+        temp = i.split('\n')
         keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
     await call.message.answer("Эпоха Марксизма и вытекающих из него течений:", reply_markup=keyboard)
 
@@ -175,7 +129,7 @@ async def topic5(call: types.CallbackQuery):
     for i in range(len(theme5)):
         temp = theme5[i].split('\n')
         keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
-    await call.message.answer("Позицивизм:", reply_markup=keyboard)
+    await call.message.answer("Позитивизм:", reply_markup=keyboard)
 
 
 @dp.message_handler(commands="Литература")
