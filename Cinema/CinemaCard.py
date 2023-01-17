@@ -2,6 +2,7 @@ import pandas as pd
 
 
 class CinemaCard(object):
+
     __path_to_cards = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/CinemaCards.csv'
     __path_to_rates = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/Rates.csv'
     cinema_cards_base = pd.read_csv(__path_to_cards)
@@ -31,7 +32,7 @@ class CinemaCard(object):
             row.append(rating[i])
         cls.cinema_cards_base.loc[length] = row
         cls.cinema_cards_base.to_csv(cls.__path_to_cards, index=False)
-        return
+        return CinemaCard(name, author, timecodes, link)
 
     def __init__(self, name: str = '', author: str = '', timecodes: str = '', link: str = '', ):
         self.name = name
