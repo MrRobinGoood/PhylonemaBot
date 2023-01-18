@@ -4,6 +4,8 @@ import pandas as pd
 class CinemaCard(object):
     __path_to_cards = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/CinemaCards.csv'
     __path_to_rates = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/Rates.csv'
+    __path_to_unseen_reviews = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/UnseenReviews.csv'
+    __path_to_applied_reviews = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/AppliedReviews.csv'
     cinema_cards_base = pd.read_csv(__path_to_cards)
     rates_base = pd.read_csv(__path_to_rates)
 
@@ -48,7 +50,18 @@ class CinemaCard(object):
                       'Художественная глубина',
                       'Общее впечатление')
         self.rating: dict = {x: self.calculate_average_rating(x) for x in categories}
-        self.reviews_amount: int = 0
+        self.unseen_reviews = self.get_reviews_from_csv(self.__path_to_unseen_reviews)
+        self.applied_reviews = self.get_reviews_from_csv(self.__path_to_applied_reviews)
+        self.unseen_reviews_amount = len(tuple(self.unseen_reviews))
+        self.applied_reviews_amount = len(tuple(self.applied_reviews))
+
+    def get_reviews_from_csv(self, path: str):
+        unseen_reviews_base = pd.DataFrame(path)
+        unseen_reviews = unseen_reviews_base.loc[(unseen_reviews_base['Название фильма'] == self.name) &
+                                                 (unseen_reviews_base['Режиссер'] == self.author)]
+        ids = list(unseen_reviews['Автор'])
+        texts = list(unseen_reviews['Текст рецензии'])
+        return zip(ids, texts)
 
     def add_rating(self, rating=None):
         if rating is None:
@@ -74,3 +87,35 @@ class CinemaCard(object):
         return str(self.cinema_cards_base.loc[(self.cinema_cards_base['Название'] == self.name) &
                                               (self.cinema_cards_base['Режиссер'] == self.author)])
 
+    def add_review_to_csv(self, user_id: str, review_text: str, path: str):
+        unseen_reviews_base = pd.DataFrame(path)
+        length = len(unseen_reviews_base)
+        unseen_reviews_base.loc[length] = (user_id, self.name, self.author, review_text)
+        unseen_reviews_base.to_csv(path, index=False)
+
+    def get_next_unseen_review(self):
+        return next(self.unseen_reviews)
+
+    def get_next_applied_review(self):
+        return next(self.applied_reviews)
+
+    def apply_review(self, id_: str):
+        unseen_reviews_base = pd.read_csv(self.__path_to_unseen_reviews)
+        review = unseen_reviews_base.loc[(unseen_reviews_base['Название'] == self.name) &
+                                         (unseen_reviews_base['Режиссер'] == self.author) &
+                                         (unseen_reviews_base['Автор'] == id_)]
+        review_index = review.index[0]
+        unseen_reviews_base.drop(review_index)
+        unseen_reviews_base.to_csv(self.__path_to_unseen_reviews)
+        applied_reviews_base = pd.read_csv(self.__path_to_applied_reviews)
+        applied_reviews_base = pd.concat(applied_reviews_base, review)
+        applied_reviews_base.to_csv(self.__path_to_applied_reviews)
+
+    def decline_review(self, id_: str):
+        unseen_reviews_base = pd.read_csv(self.__path_to_unseen_reviews)
+        review = unseen_reviews_base.loc[(unseen_reviews_base['Название'] == self.name) &
+                                         (unseen_reviews_base['Режиссер'] == self.author) &
+                                         (unseen_reviews_base['Автор'] == id_)]
+        review_index = review.index[0]
+        unseen_reviews_base.drop(review_index)
+        unseen_reviews_base.to_csv(self.__path_to_unseen_reviews)
