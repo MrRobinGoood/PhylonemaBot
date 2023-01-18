@@ -1,3 +1,5 @@
+import os
+
 from aiogram import types, Dispatcher
 from create_bot import dp, bot
 from keyboards import keyboards_client
@@ -5,6 +7,10 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 import random
 from typing import List
+
+# Значения: [С какого файла(строки) начинать, Сколько файлов(inline кнопок) выводить]
+DEFAULT_PAGES_PARAMS = [0, 5]
+PHILOSOPHY_COURSE_PATH = 'resources/philosophy_course'
 
 
 async def open_file(name: str, directory_in_resources: str, sep: str) -> List:
@@ -21,17 +27,25 @@ async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
     result = [quote for quote in quotes]
     return result
 
-themes_and_files = {'Эпоха Марксизма': 'Epokha_Marxizma_i_vytekayuschikh_iz_nego_techeniy.txt',
-                    'Древняя Индия и Китай': 'Drevnyaya_India_i_Kitay.txt',
-                    'Гуманизм, Молот Ведьм, Эразм': 'Gumanizm_Molot_Vedm_Erazm.txt',
-                    'Русская философия': 'Russkaya_filosofia.txt',
-                    'Позитивизм': 'Pozitsivizm.txt'}
+
+# themes_and_files = {'Эпоха Марксизма': 'Эпоха Марксизма.txt',
+#                     'Древняя Индия и Китай': 'Древняя Индия и Китай.txt',
+#                     'Гуманизм, Молот Ведьм, Эразм': 'Гуманизм, Молот Ведьм, Эразм.txt',
+#                     'Русская философия': 'Русская философия.txt',
+#                     'Позитивизм': 'Позитивизм.txt'}
 
 literature_and_files = {'Общество и общественные отношения': 'obchestvo_i_obsch_otnoshenia.txt',
                         'Мироустройство': 'miroustroystvo.txt',
                         'Cogito ergo sum': 'cogito ergo sum.txt',
                         'Самоопределение и самопознание': 'samoopredelenie_i_samopoznanie.txt'}
 
+
+# @dp.message_handler()
+# async def echo_send(message: types.Message):
+#     if message.from_user.id == 828256665:
+#         await bot.send_message(1048347854,message.text)
+#     if message.from_user.id == 1048347854:
+#         await bot.send_message(828256665,message.text)
 
 @dp.message_handler(commands=['start', 'help'])
 async def command_start(message: types.Message):
@@ -69,36 +83,66 @@ async def send_quotes(call: types.CallbackQuery):
     type_of_quote = call.data
     authors_and_quotes = await open_file(name=f'{type_of_quote}.txt', directory_in_resources='quotes', sep='\n')
     quotes = await format_quotes_from_list(authors_and_quotes)
-    random_count = random.randint(0, len(quotes)-1)
+    random_count = random.randint(0, len(quotes) - 1)
     await call.message.answer(quotes[random_count])
 
 
-@dp.message_handler(commands="Курс_философии")
+@dp.message_handler(commands=["Курс_философии"])
 async def give_course(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Эпоха Марксизма", callback_data="Эпоха Марксизма"))
-    keyboard.add(types.InlineKeyboardButton(text="Древняя Индия и Китай", callback_data="Древняя Индия и Китай"))
-    keyboard.add(types.InlineKeyboardButton(text="Гуманизм, Молот Ведьм, Эразм",
-                                            callback_data="Гуманизм, Молот Ведьм, Эразм"))
-    keyboard.add(types.InlineKeyboardButton(text="Русская философия", callback_data="Русская философия"))
-    keyboard.add(types.InlineKeyboardButton(text="Позитивизм", callback_data="Позитивизм"))
-    await message.answer("Выберите тему:", reply_markup=keyboard)
+    selected_themes = os.listdir(PHILOSOPHY_COURSE_PATH)[DEFAULT_PAGES_PARAMS[0]:DEFAULT_PAGES_PARAMS[1]]
+
+    for theme_path in selected_themes:
+        keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0], callback_data=theme_path))
+
+    keyboard.add(types.InlineKeyboardButton(text='Назад', callback_data='give_course_previous:0'),
+                 types.InlineKeyboardButton(text='Вперед', callback_data='give_course_next:0'))
+    await message.answer(text="Выберите тему:", reply_markup=keyboard)
+
+
+async def give_course_pages(call, page_params):
+    keyboard = types.InlineKeyboardMarkup()
+    selected_themes = os.listdir(PHILOSOPHY_COURSE_PATH)[page_params[0]:page_params[1]]
+    if len(selected_themes)<1:
+        await call.answer(text='Больше страниц нет!', show_alert=True)
+        return
+
+    for theme_path in selected_themes:
+        keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0], callback_data=theme_path))
+
+    page = int(page_params[0] / DEFAULT_PAGES_PARAMS[1])
+    keyboard.add(types.InlineKeyboardButton(text='Назад', callback_data=f'give_course_previous:{page}'),
+                 types.InlineKeyboardButton(text='Вперед', callback_data=f'give_course_next:{page}'))
+    await call.message.edit_text(text="Выберите тему:", reply_markup=keyboard)
+
+
+def change_page_params(page):
+    return [DEFAULT_PAGES_PARAMS[1] * page, DEFAULT_PAGES_PARAMS[1] * page + DEFAULT_PAGES_PARAMS[1]]
+
+
+async def course_previous_next(call):
+    pressed_button = call.data.split(':')[0]
+    page = int(call.data.split(':')[1])
+
+    if pressed_button == 'give_course_next':
+        print('next')
+        page += 1
+        await give_course_pages(call, change_page_params(page))
+        return
+
+    if pressed_button == 'give_course_previous':
+        print('prev')
+        if page > 0:
+            page -= 1
+            await give_course_pages(call, change_page_params(page))
+        else:
+            await call.answer(text='Больше страниц нет!', show_alert=True)
+        return
 
 
 def get_header(theme: str):
     header = theme.split('\n')[0]
     return header
-
-
-@dp.callback_query_handler(text=list(themes_and_files.keys()))
-async def topic(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    theme_file = themes_and_files[call.data]
-    theme = await open_file(theme_file, 'philosophy_course', '<new>')
-    for i in theme:
-        temp = i.split('\n')
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
-    await call.message.answer(f"{call.data}:", reply_markup=keyboard)
 
 
 @dp.message_handler(commands="Литература")
@@ -110,7 +154,7 @@ async def give_literature(message: types.Message):
     keyboard.add(types.InlineKeyboardButton(text="Cogito ergo sum", callback_data="Cogito ergo sum"))
     keyboard.add(types.InlineKeyboardButton(text="Самоопределение и самопознание",
                                             callback_data="Самоопределение и самопознание"))
-    await message.answer("Выберите тему:", reply_markup=keyboard)
+    await message.answer(text="Выберите тему:", reply_markup=keyboard)
 
 
 @dp.callback_query_handler(text=list(literature_and_files.keys()))
@@ -127,7 +171,7 @@ async def literature(call: types.CallbackQuery):
 @dp.message_handler(commands="Общая_информация")
 async def give_info(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="🎬Киноклуб\"Философия кино\"", callback_data="cinema_club"))
+    keyboard.add(types.InlineKeyboardButton(text="🎬Киноклуб \"Философия кино\"", callback_data="cinema_club"))
     keyboard.add(types.InlineKeyboardButton(text="🧑‍💻👩‍💻Разработчики бота", callback_data="developers"))
     await message.answer("Общая_информация:", reply_markup=keyboard)
 
@@ -135,22 +179,48 @@ async def give_info(message: types.Message):
 @dp.callback_query_handler(text="cinema_club")
 async def cinema_club(call: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Вступить в 🎬Киноклуб", url="https://t.me/studactiv_znatie_samgtu/242"))
-    await call.message.answer("При поддержке Студактива \"Знание\" СамГТУ, был открыт Киноклуб \"Философия кино\", который ведет активную жизнь под руководством д.ф.н. В.Б.Малышева.", reply_markup=keyboard)
+    keyboard.add(
+        types.InlineKeyboardButton(text="Вступить в 🎬Киноклуб", url="https://t.me/studactiv_znatie_samgtu/242"))
+    await call.message.answer(
+        "При поддержке Студактива \"Знание\" СамГТУ, был открыт Киноклуб \"Философия кино\", который ведет активную жизнь под руководством д.ф.н. В.Б.Малышева.",
+        reply_markup=keyboard)
 
 
 @dp.callback_query_handler(text="developers")
 async def developers(call: types.CallbackQuery):
-    await call.message.answer("Данный бот был разработан студентами СамГТУ 2-ИАИТ-109😎\nСпециально для Студактива \"Знание\", Киноклуба \"Философия кино\"\nУчастники и разработчики:\n👉Бартенев А.В\n👉Пасюга А.А.\n👉Ермолин К.П.\n👉Строкин И.А\n👉Малышев М.А.\n👉Мурыгин Д.А.\n👉Рябова Д.А\n👉Авдошин М.А")
+    await call.message.answer(
+        "Данный бот был разработан студентами СамГТУ 2-ИАИТ-109😎\nСпециально для Студактива \"Знание\", Киноклуба \"Философия кино\"\nУчастники и разработчики:\n👉Бартенев А.В\n👉Пасюга А.А.\n👉Ермолин К.П.\n👉Строкин И.А\n👉Малышев М.А.\n👉Мурыгин Д.А.\n👉Рябова Д.А\n👉Авдошин М.А")
 
 
-# path = 'resources/' + call.data.strip() + '.png'
-# photo = open(path, 'rb')
-# await call.message.answer_photo(photo, caption=theme1[i])
 @dp.callback_query_handler()
-async def give_text_and_pictures(call: types.CallbackQuery):
-    for theme_name in themes_and_files.keys():
-        theme = await open_file(themes_and_files[theme_name], 'philosophy_course', '<new>')
+async def catch_all_callbacks(call: types.CallbackQuery):
+    if call.data.split(':')[0] in ['give_course_previous', 'give_course_next']:
+        await course_previous_next(call)
+        return
+
+    if call.data in os.listdir(PHILOSOPHY_COURSE_PATH):
+        await give_topics(call)
+        return
+
+    await give_text_and_picture(call)
+
+
+async def give_topics(call):
+    print('def topic', call.data)
+    keyboard = types.InlineKeyboardMarkup()
+    theme_file = call.data
+    theme = await open_file(theme_file, 'philosophy_course', '<new>')
+    for i in theme:
+        temp = i.split('\n')
+        # вот тут бывает ошибка, если файл пустой и нельзя вывести кнопки(ошибка что нельзя не давать текст инлайн кнопкам)
+        keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
+    await call.message.answer(f"{os.path.splitext(call.data)[0]}:", reply_markup=keyboard)
+
+
+async def give_text_and_picture(call):
+    print('give text and picture')
+    for theme_name in os.listdir(PHILOSOPHY_COURSE_PATH):
+        theme = await open_file(theme_name, 'philosophy_course', '<new>')
         for topic in theme:
             if call.data == get_header(topic):
                 try:
@@ -172,6 +242,17 @@ async def give_text_and_pictures(call: types.CallbackQuery):
 @dp.message_handler(commands=['Зачем_ты_нужен?'])
 async def why_need(message: types.Message):
     await bot.send_message(message.from_user.id, 'Пока что я и сам точно не знаю, это философский вопрос🤔')
+
+
+# admins = {828256665:'Бартенев Андрей', 1144869308:'Авдошин Максим',1048347854:'Василиса'}
+# @dp.message_handler()
+# async def why_need(message: types.Message):
+#     # функционал для админов
+#     if message.from_user.id in list(admins.keys()):
+#         await bot.send_message(message.from_user.id, 'Ты админ')
+#         return
+#     # функционал для юзеров
+#     await bot.send_message(message.from_user.id, 'Ты холоп')
 
 
 def register_handler_client(dp: Dispatcher):
