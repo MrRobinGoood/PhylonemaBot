@@ -18,3 +18,7 @@ https://knigogid.ru/books/102032-k-osnovopolozheniyu-ontologii/toread
 <new>
 Фридрих Гегель - Лекции по эстетике
 https://www.litres.ru/fridrih-gegel/lekcii-po-estetike/
+<new>
+Фридрих Гегель - Логика
+https://www.litres.ru/fridrih-gegel/logika/
+

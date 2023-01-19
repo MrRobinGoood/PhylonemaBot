@@ -6,15 +6,21 @@ from create_bot import dp, bot
 from keyboards import keyboards_client
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
+
 import random
 from typing import List
-
 
 # Значения: [С какого файла(строки) начинать, Сколько файлов(inline кнопок) выводить]
 DEFAULT_PAGES_PARAMS = [0, 5]
 PHILOSOPHY_COURSE_PATH = 'resources/philosophy_course'
 LITERATURE_COURSE_PATH = 'resources/literature'
 
+ADMINS = {828256665: 'Бартенев Андрей', 1144869308: 'Авдошин Максим', 1048347854: 'Василиса'}
+global temp_message_quote
+global temp_delete_message
 
 async def open_file(name: str, directory_in_resources: str, sep: str) -> List:
     try:
@@ -25,17 +31,35 @@ async def open_file(name: str, directory_in_resources: str, sep: str) -> List:
         print(e)
 
 
+async def read_file(name: str, directory_in_resources: str) -> List:
+    try:
+        with open(f'resources/{directory_in_resources}/{name}', encoding='utf8') as opened_file:
+            result = [x.strip() for x in opened_file.read()]
+            return result
+    except OSError as e:
+        print(e)
+
+
+async def append_with_sep_to_file(input: str, name: str, directory_in_resources: str, sep: str):
+    try:
+        with open(f'resources/{directory_in_resources}/{name}', 'a', encoding='utf8') as opened_file:
+            opened_file.write(f'\n{sep}\n{input}')
+    except OSError as e:
+        print(e)
+
+
+async def append_to_file(input: str, name: str, directory_in_resources: str):
+    try:
+        with open(f'resources/{directory_in_resources}/{name}', 'a', encoding='utf8') as opened_file:
+            opened_file.write(input)
+    except OSError as e:
+        print(e)
+
+
 async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
     quotes = [x.replace(' (', "©").replace(")", "") for x in quotes_list]
     result = [quote for quote in quotes]
     return result
-
-
-
-# literature_and_files = {'Общество и общественные отношения': 'obchestvo_i_obsch_otnoshenia.txt',
-#                         'Мироустройство': 'miroustroystvo.txt',
-#                         'Cogito ergo sum': 'cogito ergo sum.txt',
-#                         'Самоопределение и самопознание': 'samoopredelenie_i_samopoznanie.txt'}
 
 
 @dp.message_handler(commands=['start', 'help'])
@@ -65,17 +89,132 @@ async def give_category(message: types.Message):
 async def give_quote(message: types.Message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(types.InlineKeyboardButton(text="Любая цитата", callback_data="quotes"),
-                 types.InlineKeyboardButton(text="Цитата о кино", callback_data="quotesCinema"))
+                 types.InlineKeyboardButton(text="Цитата о кино", callback_data="quotesCinema"),
+                 types.InlineKeyboardButton(text="Стихи", callback_data="quotesPoem"),
+                 types.InlineKeyboardButton(text="Русская культура", callback_data="quotesRussian"))
+    if message.from_user.id in list(ADMINS.keys()):
+        keyboard.add(types.InlineKeyboardButton(text="Добавить новую цитату", callback_data="select_type_quote"))
     await message.answer("Выберите какую цитату вы хотите:", reply_markup=keyboard)
+    # global temp_message_quote
+    # temp_message_quote = message
+    # print('1', temp_message_quote)
 
 
-@dp.callback_query_handler(text=["quotes", 'quotesCinema'])
+@dp.callback_query_handler(text='select_type_quote')
+async def select_type_quote(call: types.CallbackQuery):
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(types.InlineKeyboardButton(text="Любая цитата", callback_data="add:quotes"),
+                 types.InlineKeyboardButton(text="Цитата о кино", callback_data="add:quotesCinema"),
+                 types.InlineKeyboardButton(text="Стихи", callback_data="add:quotesPoem"),
+                 types.InlineKeyboardButton(text="Русская культура", callback_data="add:quotesRussian"))
+    await call.message.edit_text("Выберите какую цитату вы хотите добавить:", reply_markup=keyboard)
+    # print('2', temp_message_quote)
+
+
+
+@dp.callback_query_handler(text=['add:quotes', 'add:quotesCinema', 'add:quotesPoem', 'add:quotesRussian'])
+async def input_quote(call: types.CallbackQuery):
+    await Form.quote.set()
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    await call.message.edit_text(f"Введите цитату:", reply_markup=keyboard)
+    global temp_message_quote
+    temp_message_quote = call.message
+    # print('3', temp_message_quote)
+
+
+class Form(StatesGroup):
+    quote = State()
+    author = State()
+    save = State()
+
+
+@dp.message_handler(state=Form.quote)
+async def input_author(message: types.Message, state: FSMContext):
+    # Finish our conversation
+    await state.finish()
+
+    global temp_message_quote
+    await temp_message_quote.edit_text(f"Содержание цитаты:\n{message.text}")  # <-- Here we get the name
+    temp_message_quote.text = message.text
+
+    await append_with_sep_to_file(message.text, 'temp_message_quote.txt', 'temp', '<new>')
+
+    await message.delete()
+
+    await Form.author.set()
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+
+    global temp_delete_message
+    temp_delete_message = await message.answer(f"Введите автора цитаты:", reply_markup=keyboard)
+
+
+@dp.message_handler(state=Form.author)
+async def accept_quote_and_author(message: types.Message, state: FSMContext):
+    # Finish our conversation
+    await state.finish()
+
+    global temp_delete_message
+    await temp_delete_message.delete()
+
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Сохранить", callback_data="save_new_quote"),types.InlineKeyboardButton(text="Отмена", callback_data="cancel_save_quote"))
+
+    global temp_message_quote
+    await temp_message_quote.edit_text(f"Окончательный вид цитаты:\n{temp_message_quote.text}©{message.text}\nСохранить данную цитату?", reply_markup=keyboard)  # <-- Here we get the name
+    temp_message_quote.text = f'{temp_message_quote.text} ({message.text})'
+    print(temp_message_quote.text)
+
+    await message.delete()
+
+
+@dp.callback_query_handler(text='save_new_quote')
+async def save_new_quote(call: types.CallbackQuery, state: FSMContext):
+    print('save quote')
+
+
+@dp.callback_query_handler(text='cancel_save_quote')
+async def cancel_save_quote(call: types.CallbackQuery, state: FSMContext):
+    global temp_message_quote
+    await temp_message_quote.edit_text(f'{temp_message_quote.text}\nЦитата не сохранена!')
+    temp_message_quote = ''
+
+
+
+@dp.callback_query_handler(text=["quotes", 'quotesCinema', 'quotesRussian', 'quotesPoem'])
 async def send_quotes(call: types.CallbackQuery):
     type_of_quote = call.data
-    authors_and_quotes = await open_file(name=f'{type_of_quote}.txt', directory_in_resources='quotes', sep='\n')
-    quotes = await format_quotes_from_list(authors_and_quotes)
+    if type_of_quote == 'quotesPoem':
+        authors_and_quotes = await open_file(name=f'{type_of_quote}.txt', directory_in_resources='quotes', sep='<new>')
+        quotes = await format_quotes_from_list(authors_and_quotes)
+    else:
+        authors_and_quotes = await open_file(name=f'{type_of_quote}.txt', directory_in_resources='quotes', sep='\n')
+        quotes = await format_quotes_from_list(authors_and_quotes)
     random_count = random.randint(0, len(quotes) - 1)
     await call.message.answer(quotes[random_count])
+
+
+@dp.callback_query_handler(text='cancel_input', state=[Form.quote, Form.author])
+async def send_quotes(call: types.CallbackQuery, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:
+        # User is not in any state, ignoring
+        return
+
+    # Cancel state and inform user about it
+    await state.finish()
+
+    try:
+        global temp_delete_message
+        await temp_delete_message.delete()
+    except NameError as e:
+        print(e)
+
+    global temp_message_quote
+
+    await temp_message_quote.edit_text('Добавление цитаты отменено.')
+    temp_message_quote = ''
 
 
 @dp.message_handler(commands=["Курс_философии"])
