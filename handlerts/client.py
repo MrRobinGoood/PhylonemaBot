@@ -89,31 +89,51 @@ async def send_quotes(call: types.CallbackQuery):
 
 @dp.message_handler(commands=["Курс_философии"])
 async def give_course(message: types.Message):
+    await give_course_pages(message, DEFAULT_PAGES_PARAMS, 'os.listdir:' + PHILOSOPHY_COURSE_PATH)
+
+
+async def give_course_pages(call, page_params, attribute_and_path):
     keyboard = types.InlineKeyboardMarkup()
-    selected_themes = os.listdir(PHILOSOPHY_COURSE_PATH)[DEFAULT_PAGES_PARAMS[0]:DEFAULT_PAGES_PARAMS[1]]
+    attribute = attribute_and_path.split(':')[0]
+    path = attribute_and_path.split(':')[1]
+    # для работы не с os.listdir вставить ниже другой функционал чтения list(который надо разбить на странички)
+    if attribute == 'os.listdir':
+        selected_themes = os.listdir(path)[page_params[0]:page_params[1]]
+    elif attribute == '<new>':
+        print('path', path)
+        print('1',os.path.split(path)[1])
+        print('0',os.path.split(path)[0])
+        theme = await open_file(os.path.split(path)[1], os.path.split(path)[0], attribute)
+        selected_themes = []
+        for i in theme:
+            temp = i.split('\n')
+            selected_themes.append(temp[0])
+        selected_themes = selected_themes[page_params[0]:page_params[1]]
+        print('selected', selected_themes)
+    else:
+        print('incorrect attribute')
+        return
 
-    for theme_path in selected_themes:
-        keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0], callback_data=theme_path))
-
-    keyboard.add(types.InlineKeyboardButton(text='Назад', callback_data='give_course_previous:0'),
-                 types.InlineKeyboardButton(text='Вперед', callback_data='give_course_next:0'))
-    await message.answer(text="Выберите тему:", reply_markup=keyboard)
-
-
-async def give_course_pages(call, page_params):
-    keyboard = types.InlineKeyboardMarkup()
-    selected_themes = os.listdir(PHILOSOPHY_COURSE_PATH)[page_params[0]:page_params[1]]
-    if len(selected_themes)<1:
+    if len(selected_themes) < 1:
         await call.answer(text='Больше страниц нет!', show_alert=True)
         return
 
     for theme_path in selected_themes:
+        print('theme_path',theme_path)
+        print('splitext',os.path.splitext(theme_path)[0])
         keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0], callback_data=theme_path))
 
     page = int(page_params[0] / DEFAULT_PAGES_PARAMS[1])
-    keyboard.add(types.InlineKeyboardButton(text='Назад', callback_data=f'give_course_previous:{page}'),
-                 types.InlineKeyboardButton(text='Вперед', callback_data=f'give_course_next:{page}'))
-    await call.message.edit_text(text="Выберите тему:", reply_markup=keyboard)
+    print('длина',len(f'gcp:{page}:{attribute}:{path}'))
+    print('длина', len(f'gcn:{page}:{attribute}:{path}'))
+    keyboard.add(
+        types.InlineKeyboardButton(text='Назад', callback_data=f'gcp:{page}:{attribute}:{path}'),
+        types.InlineKeyboardButton(text='Вперед', callback_data=f'gcn:{page}:{attribute}:{path}'))
+    if type(call) != types.CallbackQuery:
+        # в данном случае call это переданный message
+        await call.answer(text="Выберите тему:", reply_markup=keyboard)
+    else:
+        await call.message.edit_text(text="Выберите тему:", reply_markup=keyboard)
 
 
 def change_page_params(page):
@@ -123,18 +143,20 @@ def change_page_params(page):
 async def course_previous_next(call):
     pressed_button = call.data.split(':')[0]
     page = int(call.data.split(':')[1])
-
-    if pressed_button == 'give_course_next':
+    # ниже переписать нормально
+    path_directory = call.data.split(':')[2] + ':' + call.data.split(':')[3]
+    print('between', path_directory)
+    if pressed_button == 'gcn':
         print('next')
         page += 1
-        await give_course_pages(call, change_page_params(page))
+        await give_course_pages(call, change_page_params(page), path_directory)
         return
 
-    if pressed_button == 'give_course_previous':
+    if pressed_button == 'gcp':
         print('prev')
         if page > 0:
             page -= 1
-            await give_course_pages(call, change_page_params(page))
+            await give_course_pages(call, change_page_params(page), path_directory)
         else:
             await call.answer(text='Больше страниц нет!', show_alert=True)
         return
@@ -194,7 +216,8 @@ async def developers(call: types.CallbackQuery):
 
 @dp.callback_query_handler()
 async def catch_all_callbacks(call: types.CallbackQuery):
-    if call.data.split(':')[0] in ['give_course_previous', 'give_course_next']:
+    if call.data.split(':')[0] in ['gcp', 'gcn']:
+        print('catch', call.data)
         await course_previous_next(call)
         return
 
@@ -209,12 +232,17 @@ async def give_topics(call):
     print('def topic', call.data)
     keyboard = types.InlineKeyboardMarkup()
     theme_file = call.data
-    theme = await open_file(theme_file, 'philosophy_course', '<new>')
-    for i in theme:
-        temp = i.split('\n')
-        # вот тут бывает ошибка, если файл пустой и нельзя вывести кнопки(ошибка что нельзя не давать текст инлайн кнопкам)
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
-    await call.message.answer(f"{os.path.splitext(call.data)[0]}:", reply_markup=keyboard)
+    attribute = '<new>'
+    package = 'philosophy_course'
+
+    # theme = await open_file(theme_file, 'philosophy_course', '<new>')
+    # ниже переписать недочеты
+    await give_course_pages(call, DEFAULT_PAGES_PARAMS, f'{attribute}:{package}/{theme_file}')
+    # for i in theme:
+    #     temp = i.split('\n')
+    #     # вот тут бывает ошибка, если файл пустой и нельзя вывести кнопки(ошибка что нельзя не давать текст инлайн кнопкам)
+    #     keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
+    # await call.message.answer(f"{os.path.splitext(call.data)[0]}:", reply_markup=keyboard)
 
 
 async def give_text_and_picture(call):
