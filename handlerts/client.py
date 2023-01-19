@@ -4,9 +4,6 @@ import aiogram.utils.exceptions
 from aiogram import types, Dispatcher
 from create_bot import dp, bot
 from keyboards import keyboards_client
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
@@ -21,6 +18,7 @@ LITERATURE_COURSE_PATH = 'resources/literature'
 ADMINS = {828256665: 'Бартенев Андрей', 1144869308: 'Авдошин Максим', 1048347854: 'Василиса'}
 global temp_message_quote
 global temp_delete_message
+
 
 async def open_file(name: str, directory_in_resources: str, sep: str) -> List:
     try:
@@ -95,32 +93,26 @@ async def give_quote(message: types.Message):
     if message.from_user.id in list(ADMINS.keys()):
         keyboard.add(types.InlineKeyboardButton(text="Добавить новую цитату", callback_data="select_type_quote"))
     await message.answer("Выберите какую цитату вы хотите:", reply_markup=keyboard)
-    # global temp_message_quote
-    # temp_message_quote = message
-    # print('1', temp_message_quote)
 
 
 @dp.callback_query_handler(text='select_type_quote')
 async def select_type_quote(call: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
-    keyboard.add(types.InlineKeyboardButton(text="Любая цитата", callback_data="add:quotes"),
-                 types.InlineKeyboardButton(text="Цитата о кино", callback_data="add:quotesCinema"),
-                 types.InlineKeyboardButton(text="Стихи", callback_data="add:quotesPoem"),
-                 types.InlineKeyboardButton(text="Русская культура", callback_data="add:quotesRussian"))
-    await call.message.edit_text("Выберите какую цитату вы хотите добавить:", reply_markup=keyboard)
-    # print('2', temp_message_quote)
+    keyboard.add(types.InlineKeyboardButton(text="Любая цитата", callback_data="add:quotes.txt"),
+                 types.InlineKeyboardButton(text="Цитата о кино", callback_data="add:quotesCinema.txt"),
+                 types.InlineKeyboardButton(text="Русская культура", callback_data="add:quotesRussian.txt"))
+    await call.message.edit_text("Выберите категорию для добавления цитаты:", reply_markup=keyboard)
 
 
-
-@dp.callback_query_handler(text=['add:quotes', 'add:quotesCinema', 'add:quotesPoem', 'add:quotesRussian'])
+@dp.callback_query_handler(
+    text=['add:quotes.txt', 'add:quotesCinema.txt', 'add:quotesPoem.txt', 'add:quotesRussian.txt'])
 async def input_quote(call: types.CallbackQuery):
     await Form.quote.set()
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
     await call.message.edit_text(f"Введите цитату:", reply_markup=keyboard)
     global temp_message_quote
-    temp_message_quote = call.message
-    # print('3', temp_message_quote)
+    temp_message_quote = call
 
 
 class Form(StatesGroup):
@@ -131,14 +123,11 @@ class Form(StatesGroup):
 
 @dp.message_handler(state=Form.quote)
 async def input_author(message: types.Message, state: FSMContext):
-    # Finish our conversation
     await state.finish()
 
     global temp_message_quote
-    await temp_message_quote.edit_text(f"Содержание цитаты:\n{message.text}")  # <-- Here we get the name
-    temp_message_quote.text = message.text
-
-    await append_with_sep_to_file(message.text, 'temp_message_quote.txt', 'temp', '<new>')
+    await temp_message_quote.message.edit_text(f"Содержание цитаты:\n{message.text}")  # <-- Here we get the name
+    temp_message_quote.message.text = message.text
 
     await message.delete()
 
@@ -152,34 +141,40 @@ async def input_author(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=Form.author)
 async def accept_quote_and_author(message: types.Message, state: FSMContext):
-    # Finish our conversation
     await state.finish()
 
     global temp_delete_message
     await temp_delete_message.delete()
 
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Сохранить", callback_data="save_new_quote"),types.InlineKeyboardButton(text="Отмена", callback_data="cancel_save_quote"))
-
     global temp_message_quote
-    await temp_message_quote.edit_text(f"Окончательный вид цитаты:\n{temp_message_quote.text}©{message.text}\nСохранить данную цитату?", reply_markup=keyboard)  # <-- Here we get the name
-    temp_message_quote.text = f'{temp_message_quote.text} ({message.text})'
-    print(temp_message_quote.text)
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(
+        types.InlineKeyboardButton(text="Сохранить", callback_data=f"save_new_quote"),
+        types.InlineKeyboardButton(text="Отмена", callback_data="cancel_save_quote"))
+
+    print(temp_message_quote.data)
+    await temp_message_quote.message.edit_text(
+        f"Окончательный вид цитаты:\n{temp_message_quote.message.text}©{message.text}\nСохранить данную цитату?",
+        reply_markup=keyboard)
+    temp_message_quote.message.text = f'{temp_message_quote.message.text} ({message.text})'
+    print(temp_message_quote.message.text)
 
     await message.delete()
 
 
 @dp.callback_query_handler(text='save_new_quote')
 async def save_new_quote(call: types.CallbackQuery, state: FSMContext):
-    print('save quote')
+    global temp_message_quote
+    await append_to_file(f'\n{temp_message_quote.message.text}', temp_message_quote.data.split(':')[1], 'quotes')
+    await temp_message_quote.message.edit_text('Цитата успешно сохранена!')
+    temp_message_quote = ''
 
 
 @dp.callback_query_handler(text='cancel_save_quote')
 async def cancel_save_quote(call: types.CallbackQuery, state: FSMContext):
     global temp_message_quote
-    await temp_message_quote.edit_text(f'{temp_message_quote.text}\nЦитата не сохранена!')
+    await temp_message_quote.message.edit_text(f'{temp_message_quote.message.text}\nЦитата не сохранена!')
     temp_message_quote = ''
-
 
 
 @dp.callback_query_handler(text=["quotes", 'quotesCinema', 'quotesRussian', 'quotesPoem'])
@@ -199,10 +194,7 @@ async def send_quotes(call: types.CallbackQuery):
 async def send_quotes(call: types.CallbackQuery, state: FSMContext):
     current_state = await state.get_state()
     if current_state is None:
-        # User is not in any state, ignoring
         return
-
-    # Cancel state and inform user about it
     await state.finish()
 
     try:
@@ -212,8 +204,7 @@ async def send_quotes(call: types.CallbackQuery, state: FSMContext):
         print(e)
 
     global temp_message_quote
-
-    await temp_message_quote.edit_text('Добавление цитаты отменено.')
+    await temp_message_quote.message.edit_text('Добавление цитаты отменено.')
     temp_message_quote = ''
 
 
@@ -277,7 +268,10 @@ async def give_course_pages(call, page_params, attribute_and_path):
         await call.answer(text="Выберите тему:", reply_markup=keyboard)
     else:
         try:
-            await call.message.edit_text(text=os.path.splitext(path)[0], reply_markup=keyboard)
+            heading = os.path.splitext(path)[0]
+            if attribute == 'os.listdir':
+                heading = "Выберите тему"
+            await call.message.edit_text(text=heading+':', reply_markup=keyboard)
         except aiogram.utils.exceptions.ButtonDataInvalid as e:
             print(e)
 
@@ -340,7 +334,7 @@ async def cinema_club(call: types.CallbackQuery):
 @dp.callback_query_handler(text="developers")
 async def developers(call: types.CallbackQuery):
     await call.message.answer(
-        "Данный бот был разработан студентами СамГТУ 2-ИАИТ-109😎\nСпециально для Студактива \"Знание\", Киноклуба \"Философия кино\"\nУчастники и разработчики:\n👉Бартенев А.В\n👉Пасюга А.А.\n👉Ермолин К.П.\n👉Строкин И.А\n👉Малышев М.А.\n👉Мурыгин Д.А.\n👉Рябова Д.А\n👉Авдошин М.А")
+        "Данный бот был разработан студентами СамГТУ 2-ИАИТ-109😎\nСпециально для Студактива \"Знание\", Киноклуба \"Философия кино\"\nУчастники и разработчики:\n👉Бартенев А.В\n👉Авдошин М.А\n👉Малышев М.А.\n👉Мурыгин Д.А.\n👉Строкин И.А\n👉Пасюга А.А.\n👉Ермолин К.П.\n👉Рябова Д.А\n👉Плюхин В.К.")
 
 
 @dp.callback_query_handler()
@@ -402,17 +396,6 @@ async def give_text_and_picture(call):
 @dp.message_handler(commands=['Зачем_ты_нужен?'])
 async def why_need(message: types.Message):
     await bot.send_message(message.from_user.id, 'Пока что я и сам точно не знаю, это философский вопрос🤔')
-
-
-# admins = {828256665:'Бартенев Андрей', 1144869308:'Авдошин Максим',1048347854:'Василиса'}
-# @dp.message_handler()
-# async def why_need(message: types.Message):
-#     # функционал для админов
-#     if message.from_user.id in list(admins.keys()):
-#         await bot.send_message(message.from_user.id, 'Ты админ')
-#         return
-#     # функционал для юзеров
-#     await bot.send_message(message.from_user.id, 'Ты холоп')
 
 
 def register_handler_client(dp: Dispatcher):
