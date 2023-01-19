@@ -119,3 +119,7 @@ class CinemaCard(object):
         review_index = review.index[0]
         unseen_reviews_base.drop(review_index)
         unseen_reviews_base.to_csv(self.__path_to_unseen_reviews, sep=';')
+
+
+if __name__ == '__main__':
+    a = CinemaCard()

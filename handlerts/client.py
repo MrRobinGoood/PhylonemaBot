@@ -4,10 +4,12 @@ from typing import List
 import re
 
 from aiogram import types, Dispatcher
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
 
 from create_bot import dp, bot
 from keyboards import keyboards_client
-
 from Cinema.CinemaCard import CinemaCard
 
 
@@ -36,7 +38,7 @@ literature_and_files = {'Общество и общественные отнош
                         'Cogito ergo sum': 'cogito ergo sum.txt',
                         'Самоопределение и самопознание': 'samoopredelenie_i_samopoznanie.txt'}
 admins = {1144869308: 'Авдошин Максим'}
-
+global new_film
 
 @dp.message_handler(commands=['start', 'help'])
 async def command_start(message: types.Message):
@@ -68,13 +70,87 @@ async def give_cinema(message: types.Message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     print(message.from_user.id)
     directors = set(CinemaCard.cinema_cards_base['Режиссер'])
-    #if message.from_user.id in list(admins.keys()):
-        # keyboard.add(types.InlineKeyboardButton(text='Добавить карточку фильма', callback_data='add_card'))
+    if message.from_user.id in list(admins.keys()):
+        keyboard.add(types.InlineKeyboardButton(text='Добавить карточку фильма', callback_data='add_card'))
     for i in directors:
         keyboard.add(types.InlineKeyboardButton(text=i, callback_data=f'{i}|{message.from_user.id}'))
     _ = "В этом разделе можно найти информацию о фильмах, рассмотренных или планируемых к рассмотрению нашим киноклубом"
     __ = 'Выберите режиссера, фильмы которого вас интересуют'
     await message.answer(text=f'{_}.\n{__}:', reply_markup=keyboard)
+
+global temp_film_info
+global temp_delete_message
+fields = ('название', 'режиссера', 'реперные точки', 'ссылку')
+
+
+@dp.callback_query_handler(text='add_card')
+async def input_name(call: types.CallbackQuery):
+    await Form.card.set()
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    global temp_film_info
+    temp_film_info = []
+    await call.message.edit_text(f"Введите название фильма:", reply_markup=keyboard)
+
+
+class Form(StatesGroup):
+    card = State()
+    director = State()
+    timecodes = State()
+    link = State()
+    save = State()
+
+
+@dp.message_handler(state=Form.card)
+async def input_author(message: types.Message, state: FSMContext):
+    await state.finish()
+    global temp_film_info
+    temp_film_info.append(message.text)
+    await message.delete()
+    await Form.director.set()
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    global temp_delete_message
+    temp_delete_message = await message.answer(f"Введите автора цитаты:", reply_markup=keyboard)
+
+
+@dp.message_handler(state=Form.director)
+async def input_timecodes(message: types.Message, state: FSMContext):
+    await state.finish()
+    global temp_film_info
+    temp_film_info.append(message.text)
+    await message.delete()
+    await Form.timecodes.set()
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    global temp_delete_message
+    temp_delete_message = await message.answer(f"Введите реперные точки:", reply_markup=keyboard)
+
+
+@dp.message_handler(state=Form.timecodes)
+async def input_link(message: types.Message, state: FSMContext):
+    await state.finish()
+    global temp_film_info
+    temp_film_info.append(message.text)
+    await message.delete()
+    await Form.link.set()
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    global temp_delete_message
+    temp_delete_message = await message.answer(f"Введите ссылку:", reply_markup=keyboard)
+
+
+@dp.message_handler(state=Form.link)
+async def accept_quote_and_author(message: types.Message, state: FSMContext):
+    await state.finish()
+    global temp_delete_message
+    await temp_delete_message.delete()
+    global temp_film_info
+    temp_film_info.append(message.text)
+    film = CinemaCard.add_card_to_csv(temp_film_info[0], temp_film_info[1], temp_film_info[2], temp_film_info[3])
+    text = f'{film.name}\n{film.director}\n{film.timecodes}\nСсылка на просмотр фильма: {film.link}'
+    await message.answer(text)
+    await message.delete()
 
 
 @dp.callback_query_handler(lambda call: True if re.fullmatch(r'[^|]*\|[^|]*', call.data) else False)
@@ -127,7 +203,6 @@ async def show_reviews(call: types.CallbackQuery):
         await call.message.answer(text=f'Рецензия пользователя{id_}:\n{text}', reply_markup=keyboard)
 
 
-
 @dp.callback_query_handler(lambda call: True if re.fullmatch(r'rate\|[^|]*\|[^|]*', call.data) else False)
 async def rate_beginning(call: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup()
@@ -167,7 +242,7 @@ async def rate_processing(call: types.CallbackQuery):
 @dp.callback_query_handler(lambda call: True if re.fullmatch(r'rate\|[^|]*\|[^|]*\|[^|]*\|apply', call.data) else False)
 async def rate_apply(call: types.CallbackQuery):
     _, film_name, director, rates, __ = call.data.split('|')
-    int_rates = [int(x) for x in rates]
+    int_rates = [int(x)+1 for x in rates]
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
     film.add_rating(int_rates)
     await call.message.answer(text='Оценка успешно добавлена!')
