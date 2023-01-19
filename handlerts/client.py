@@ -1,5 +1,6 @@
 import os
 
+import aiogram.utils.exceptions
 from aiogram import types, Dispatcher
 from create_bot import dp, bot
 from keyboards import keyboards_client
@@ -8,9 +9,11 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import random
 from typing import List
 
+
 # Значения: [С какого файла(строки) начинать, Сколько файлов(inline кнопок) выводить]
 DEFAULT_PAGES_PARAMS = [0, 5]
 PHILOSOPHY_COURSE_PATH = 'resources/philosophy_course'
+LITERATURE_COURSE_PATH = 'resources/literature'
 
 
 async def open_file(name: str, directory_in_resources: str, sep: str) -> List:
@@ -28,24 +31,12 @@ async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
     return result
 
 
-# themes_and_files = {'Эпоха Марксизма': 'Эпоха Марксизма.txt',
-#                     'Древняя Индия и Китай': 'Древняя Индия и Китай.txt',
-#                     'Гуманизм, Молот Ведьм, Эразм': 'Гуманизм, Молот Ведьм, Эразм.txt',
-#                     'Русская философия': 'Русская философия.txt',
-#                     'Позитивизм': 'Позитивизм.txt'}
 
-literature_and_files = {'Общество и общественные отношения': 'obchestvo_i_obsch_otnoshenia.txt',
-                        'Мироустройство': 'miroustroystvo.txt',
-                        'Cogito ergo sum': 'cogito ergo sum.txt',
-                        'Самоопределение и самопознание': 'samoopredelenie_i_samopoznanie.txt'}
+# literature_and_files = {'Общество и общественные отношения': 'obchestvo_i_obsch_otnoshenia.txt',
+#                         'Мироустройство': 'miroustroystvo.txt',
+#                         'Cogito ergo sum': 'cogito ergo sum.txt',
+#                         'Самоопределение и самопознание': 'samoopredelenie_i_samopoznanie.txt'}
 
-
-# @dp.message_handler()
-# async def echo_send(message: types.Message):
-#     if message.from_user.id == 828256665:
-#         await bot.send_message(1048347854,message.text)
-#     if message.from_user.id == 1048347854:
-#         await bot.send_message(828256665,message.text)
 
 @dp.message_handler(commands=['start', 'help'])
 async def command_start(message: types.Message):
@@ -99,16 +90,23 @@ async def give_course_pages(call, page_params, attribute_and_path):
     # для работы не с os.listdir вставить ниже другой функционал чтения list(который надо разбить на странички)
     if attribute == 'os.listdir':
         selected_themes = os.listdir(path)[page_params[0]:page_params[1]]
-    elif attribute == '<new>':
-        print('path', path)
-        print('1',os.path.split(path)[1])
-        print('0',os.path.split(path)[0])
-        theme = await open_file(os.path.split(path)[1], os.path.split(path)[0], attribute)
+    # c == course philo, l == literature
+    elif attribute in ['c', 'l']:
+        if attribute == 'c':
+            package = 'philosophy_course'
+        elif attribute == 'l':
+            package = 'literature'
+        theme = await open_file(path, package, '<new>')
         selected_themes = []
+        urls = []
         for i in theme:
             temp = i.split('\n')
             selected_themes.append(temp[0])
+            if attribute == 'l':
+                urls.append(temp[1])
         selected_themes = selected_themes[page_params[0]:page_params[1]]
+        if attribute == 'l':
+            urls = urls[page_params[0]:page_params[1]]
         print('selected', selected_themes)
     else:
         print('incorrect attribute')
@@ -119,21 +117,34 @@ async def give_course_pages(call, page_params, attribute_and_path):
         return
 
     for theme_path in selected_themes:
-        print('theme_path',theme_path)
-        print('splitext',os.path.splitext(theme_path)[0])
-        keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0], callback_data=theme_path))
+        if attribute == 'os.listdir':
+            keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0], callback_data=theme_path))
+        if attribute == 'c':
+            keyboard.add(types.InlineKeyboardButton(text=theme_path, callback_data=theme_path))
+    if attribute == 'l':
+        for i in range(len(urls)):
+            keyboard.add(types.InlineKeyboardButton(text=selected_themes[i], url=urls[i]))
 
     page = int(page_params[0] / DEFAULT_PAGES_PARAMS[1])
-    print('длина',len(f'gcp:{page}:{attribute}:{path}'))
-    print('длина', len(f'gcn:{page}:{attribute}:{path}'))
+
     keyboard.add(
-        types.InlineKeyboardButton(text='Назад', callback_data=f'gcp:{page}:{attribute}:{path}'),
-        types.InlineKeyboardButton(text='Вперед', callback_data=f'gcn:{page}:{attribute}:{path}'))
+        types.InlineKeyboardButton(text='Назад', callback_data=f'p:{page}:{attribute}:{path}'),
+        types.InlineKeyboardButton(text='Вперед', callback_data=f'n:{page}:{attribute}:{path}'))
+    print(f'p:{page}:{attribute}:{path}')
+    print('размер', utf8len(f'p:{page}:{attribute}:{path}'))
+
     if type(call) != types.CallbackQuery:
         # в данном случае call это переданный message
         await call.answer(text="Выберите тему:", reply_markup=keyboard)
     else:
-        await call.message.edit_text(text="Выберите тему:", reply_markup=keyboard)
+        try:
+            await call.message.edit_text(text=os.path.splitext(path)[0], reply_markup=keyboard)
+        except aiogram.utils.exceptions.ButtonDataInvalid as e:
+            print(e)
+
+
+def utf8len(s):
+    return len(s.encode('utf-8'))
 
 
 def change_page_params(page):
@@ -145,15 +156,12 @@ async def course_previous_next(call):
     page = int(call.data.split(':')[1])
     # ниже переписать нормально
     path_directory = call.data.split(':')[2] + ':' + call.data.split(':')[3]
-    print('between', path_directory)
-    if pressed_button == 'gcn':
-        print('next')
+    if pressed_button == 'n':
         page += 1
         await give_course_pages(call, change_page_params(page), path_directory)
         return
 
-    if pressed_button == 'gcp':
-        print('prev')
+    if pressed_button == 'p':
         if page > 0:
             page -= 1
             await give_course_pages(call, change_page_params(page), path_directory)
@@ -169,25 +177,7 @@ def get_header(theme: str):
 
 @dp.message_handler(commands="Литература")
 async def give_literature(message: types.Message):
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Общество и общественные отношения",
-                                            callback_data="Общество и общественные отношения"))
-    keyboard.add(types.InlineKeyboardButton(text="Мироустройство", callback_data="Мироустройство"))
-    keyboard.add(types.InlineKeyboardButton(text="Cogito ergo sum", callback_data="Cogito ergo sum"))
-    keyboard.add(types.InlineKeyboardButton(text="Самоопределение и самопознание",
-                                            callback_data="Самоопределение и самопознание"))
-    await message.answer(text="Выберите тему:", reply_markup=keyboard)
-
-
-@dp.callback_query_handler(text=list(literature_and_files.keys()))
-async def literature(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    theme_file = literature_and_files[call.data]
-    literature = await open_file(theme_file, 'literature', '<new>')
-    for i in literature:
-        temp = i.split('\n')
-        keyboard.add(types.InlineKeyboardButton(text=temp[0], url=temp[1]))
-    await call.message.answer(f"{call.data}:", reply_markup=keyboard)
+    await give_course_pages(message, DEFAULT_PAGES_PARAMS, 'os.listdir:' + LITERATURE_COURSE_PATH)
 
 
 @dp.message_handler(commands="Общая_информация")
@@ -216,33 +206,36 @@ async def developers(call: types.CallbackQuery):
 
 @dp.callback_query_handler()
 async def catch_all_callbacks(call: types.CallbackQuery):
-    if call.data.split(':')[0] in ['gcp', 'gcn']:
-        print('catch', call.data)
+    if call.data.split(':')[0] in ['p', 'n']:
+        # print('catch', call.data)
         await course_previous_next(call)
         return
 
     if call.data in os.listdir(PHILOSOPHY_COURSE_PATH):
-        await give_topics(call)
+        await give_philo_topics(call)
+        return
+
+    if call.data in os.listdir(LITERATURE_COURSE_PATH):
+        await give_lit_topics(call)
         return
 
     await give_text_and_picture(call)
 
 
-async def give_topics(call):
-    print('def topic', call.data)
-    keyboard = types.InlineKeyboardMarkup()
+async def give_philo_topics(call):
+    print('def philo topic', call.data)
     theme_file = call.data
-    attribute = '<new>'
-    package = 'philosophy_course'
-
-    # theme = await open_file(theme_file, 'philosophy_course', '<new>')
+    attribute = 'c'
     # ниже переписать недочеты
-    await give_course_pages(call, DEFAULT_PAGES_PARAMS, f'{attribute}:{package}/{theme_file}')
-    # for i in theme:
-    #     temp = i.split('\n')
-    #     # вот тут бывает ошибка, если файл пустой и нельзя вывести кнопки(ошибка что нельзя не давать текст инлайн кнопкам)
-    #     keyboard.add(types.InlineKeyboardButton(text=temp[0], callback_data=temp[0]))
-    # await call.message.answer(f"{os.path.splitext(call.data)[0]}:", reply_markup=keyboard)
+    await give_course_pages(call, DEFAULT_PAGES_PARAMS, f'{attribute}:{theme_file}')
+
+
+async def give_lit_topics(call):
+    print('def lit topic', call.data)
+    theme_file = call.data
+    attribute = 'l'
+    # ниже переписать недочеты
+    await give_course_pages(call, DEFAULT_PAGES_PARAMS, f'{attribute}:{theme_file}')
 
 
 async def give_text_and_picture(call):
