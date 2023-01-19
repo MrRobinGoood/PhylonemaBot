@@ -3,10 +3,10 @@ import numpy as np
 
 
 class CinemaCard(object):
-    __path_to_cards = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/CinemaCards.csv'
-    __path_to_rates = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/Rates.csv'
-    __path_to_unseen_reviews = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/UnseenReviews.csv'
-    __path_to_applied_reviews = r'C:/Users/Zlyde/PycharmProjects/PhylonemaBot/resources/Cinema/AppliedReviews.csv'
+    __path_to_cards = r'resources/Cinema/CinemaCards.csv'
+    __path_to_rates = r'resources/Cinema/Rates.csv'
+    __path_to_unseen_reviews = r'resources/Cinema/UnseenReviews.csv'
+    __path_to_applied_reviews = r'resources/Cinema/AppliedReviews.csv'
     cinema_cards_base = pd.read_csv(__path_to_cards, sep=';')
     rates_base = pd.read_csv(__path_to_rates, sep=';')
 
