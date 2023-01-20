@@ -1,9 +1,12 @@
-
+import pandas as pd
 import asyncio
 import random
 from typing import List
 import re
+import pymorphy2
 
+morph = pymorphy2.MorphAnalyzer()
+from nltk.tokenize import word_tokenize
 
 import os
 
@@ -24,7 +27,6 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 
 import random
 from typing import List
-
 
 # Значения: [С какого файла(строки) начинать, Сколько файлов(inline кнопок) выводить]
 DEFAULT_PAGES_PARAMS = [0, 5]
@@ -115,6 +117,7 @@ async def give_cinema(message: types.Message):
     __ = 'Выберите режиссера, фильмы которого вас интересуют'
     await message.answer(text=f'{_}.\n{__}:', reply_markup=keyboard)
 
+
 global temp_film_info
 global temp_delete_message
 global temp_review_info
@@ -136,10 +139,6 @@ class Form_films(StatesGroup):
     director = State()
     timecodes = State()
     link = State()
-
-    quote = State()
-    author = State()
-
 
 
 @dp.message_handler(state=Form_films.card)
@@ -230,7 +229,8 @@ class FormReview(StatesGroup):
     author = State()
 
 
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'leave review\|[^|]*\|[^|]*\|[^|]*', call.data) else False)
+@dp.callback_query_handler(
+    lambda call: True if re.fullmatch(r'leave review\|[^|]*\|[^|]*\|[^|]*', call.data) else False)
 async def input_quote(call: types.CallbackQuery):
     await FormReview.text.set()
     keyboard = types.InlineKeyboardMarkup()
@@ -275,7 +275,8 @@ async def cancel_save_review(call: types.CallbackQuery, state: FSMContext):
     temp_review_info = []
 
 
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'show reviews\|[^|]*\|[^|]*\|[^|]*', call.data) else False)
+@dp.callback_query_handler(
+    lambda call: True if re.fullmatch(r'show reviews\|[^|]*\|[^|]*\|[^|]*', call.data) else False)
 async def show_reviews(call: types.CallbackQuery):
     *_, film_name, director, user_id = call.data.split('|')
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
@@ -283,7 +284,7 @@ async def show_reviews(call: types.CallbackQuery):
         id_, text = film.get_next_applied_review()
     except StopIteration:
         end_keyboard = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton(text='Назад',
-                                                        callback_data=f'{film_name}|{director}|{user_id}'))
+                                                                                   callback_data=f'{film_name}|{director}|{user_id}'))
         await call.message.answer(text=f'Больше рецензий нет.', reply_markup=end_keyboard)
     else:
         keyboard = types.InlineKeyboardMarkup(row_width=1)
@@ -326,14 +327,14 @@ async def rate_processing(call: types.CallbackQuery):
     else:
         keyboard = types.InlineKeyboardMarkup(row_width=3)
         for i in range(10):
-            keyboard.add(types.InlineKeyboardButton(text=f'{i+1}', callback_data=f'{call.data}{i}'))
+            keyboard.add(types.InlineKeyboardButton(text=f'{i + 1}', callback_data=f'{call.data}{i}'))
         await call.message.answer(text=f'{categories[length]}', reply_markup=keyboard)
 
 
 @dp.callback_query_handler(lambda call: True if re.fullmatch(r'rate\|[^|]*\|[^|]*\|[^|]*\|apply', call.data) else False)
 async def rate_apply(call: types.CallbackQuery):
     _, film_name, director, rates, __ = call.data.split('|')
-    int_rates = [int(x)+1 for x in rates]
+    int_rates = [int(x) + 1 for x in rates]
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
     film.add_rating(int_rates)
     await call.message.answer(text='Оценка успешно добавлена!')
@@ -347,7 +348,7 @@ async def moderate_reviews(call: types.CallbackQuery):
         id_, text = film.get_next_unseen_review()
     except StopIteration:
         end_keyboard = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton(text='Назад',
-                                                        callback_data=f'{film_name}|{director}|{user_id}'))
+                                                                                   callback_data=f'{film_name}|{director}|{user_id}'))
         await call.message.answer(text=f'Нерассмотренных рецензий нет.', reply_markup=end_keyboard)
     else:
         keyboard = types.InlineKeyboardMarkup(row_width=1)
@@ -407,10 +408,9 @@ async def input_quote(call: types.CallbackQuery):
     temp_message_quote = call
 
 
-# class Form(StatesGroup):
-#     quote = State()
-#     author = State()
-#     save = State()
+class Form(StatesGroup):
+    quote = State()
+    author = State()
 
 
 @dp.message_handler(state=Form.quote)
@@ -500,6 +500,89 @@ async def send_quotes(call: types.CallbackQuery, state: FSMContext):
     temp_message_quote = ''
 
 
+@dp.message_handler(commands=['Словарь'])
+async def give_category(message: types.Message):
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Ввести фразу", callback_data="word_input"))
+    await bot.send_message(message.from_user.id,
+                           'Этот словарь📖 может кратко раскрыть значения терминов из философии. Просто нажми кнопку ниже👇 и введи слово или предложение, например спроси что такое схоластика❓',
+                           reply_markup=keyboard)
+
+
+class Form_Dict(StatesGroup):
+    word = State()
+
+
+@dp.callback_query_handler(text='word_input')
+async def word_input(call: types.CallbackQuery):
+    await Form_Dict.word.set()
+
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_word"))
+    global temp_delete_message
+    temp_delete_message = await call.message.edit_text(f"Введите слово или предложение:", reply_markup=keyboard)
+
+
+def read_dictionary_csv(temp_list_path):
+    frame_temp = pd.read_csv(temp_list_path, header=None)
+    temp = frame_temp.values.tolist()
+    list_temp = []
+    for i in range(len(temp)):
+        list_temp.append(temp[i][0])
+    return list_temp
+
+
+def normalize_input(input_words):
+    tokens = word_tokenize(input_words, language="russian")
+    lemma_tokens = []
+    for word in tokens:
+        p = morph.parse(word)[0]
+        if p.tag.POS in ['NOUN', 'COMP', 'VERB', 'INTJ', 'INFN', 'PRTF', 'PRTS', 'NUMR', 'ADVB', 'PREP', 'CONJ', 'PRED',
+                         'PRCL', 'ADJF', 'ADJS', 'GRND', 'NPRO']:
+            lemma_tokens.append(p.normal_form)
+    return lemma_tokens
+
+
+async def search_in_dict(input_words, message):
+    normal_words = normalize_input(input_words)
+    dictionary = read_dictionary_csv('resources/dictionary/dictionary1.csv')
+    meanings = read_dictionary_csv('resources/dictionary/meanings1.csv')
+    presentation = read_dictionary_csv('resources/dictionary/presentation1.csv')
+    is_in_dict = False
+    for word in normal_words:
+        if word in dictionary:
+            is_in_dict = True
+            await message.answer(
+                f'Что я нашёл😌📚\n{presentation[dictionary.index(word)].strip()} - {meanings[dictionary.index(word)].strip()}')
+    if not is_in_dict:
+        await message.answer(
+            'К сожалению, по этому запросу я ничего не смог найти😔, но вы можете попробовать найти другие слова или предложения📕')
+
+
+@dp.message_handler(state=Form_Dict)
+async def give_word_from_dict(message: types.Message, state: FSMContext):
+    await state.finish()
+
+    await message.answer(f"Вы ввели:\n{message.text}")
+    await search_in_dict(message.text, message)
+    await temp_delete_message.delete()
+    await message.delete()
+
+
+@dp.callback_query_handler(text='cancel_input_word', state=[Form_Dict.word])
+async def send_quotes(call: types.CallbackQuery, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:
+        return
+    await state.finish()
+
+    try:
+        global temp_delete_message
+        await temp_delete_message.edit_text('Ввод слова или предложения отменен.')
+    except NameError as e:
+        print(e)
+
+
 @dp.message_handler(commands=["Курс_философии"])
 async def give_course(message: types.Message):
     await give_course_pages(message, DEFAULT_PAGES_PARAMS, 'os.listdir:' + PHILOSOPHY_COURSE_PATH)
@@ -563,7 +646,7 @@ async def give_course_pages(call, page_params, attribute_and_path):
             heading = os.path.splitext(path)[0]
             if attribute == 'os.listdir':
                 heading = "Выберите тему"
-            await call.message.edit_text(text=heading+':', reply_markup=keyboard)
+            await call.message.edit_text(text=heading + ':', reply_markup=keyboard)
         except aiogram.utils.exceptions.ButtonDataInvalid as e:
             print(e)
 
@@ -694,4 +777,4 @@ def register_handler_client(dp: Dispatcher):
     dp.register_message_handler(command_start, commands=['start', 'help'])
     dp.register_message_handler(why_need, commands=['Зачем_ты_нужен?'])
     dp.register_message_handler(give_category, commands=['Цитаты', 'Курс_философии', 'Литература', 'Общая_информация',
-                                                         'Кино'])
+                                                         'Кино', 'Словарь'])
