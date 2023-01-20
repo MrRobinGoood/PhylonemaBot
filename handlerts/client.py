@@ -117,12 +117,13 @@ async def give_cinema(message: types.Message):
 
 global temp_film_info
 global temp_delete_message
+global temp_review_info
 fields = ('название', 'режиссера', 'реперные точки', 'ссылку')
 
 
 @dp.callback_query_handler(text='add_card')
 async def input_name(call: types.CallbackQuery):
-    await Form.card.set()
+    await Form_films.card.set()
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
     global temp_film_info
@@ -130,58 +131,57 @@ async def input_name(call: types.CallbackQuery):
     await call.message.edit_text(f"Введите название фильма:", reply_markup=keyboard)
 
 
-class Form(StatesGroup):
+class Form_films(StatesGroup):
     card = State()
     director = State()
     timecodes = State()
     link = State()
-    save = State()
 
     quote = State()
     author = State()
 
 
 
-@dp.message_handler(state=Form.card)
+@dp.message_handler(state=Form_films.card)
 async def input_author(message: types.Message, state: FSMContext):
     await state.finish()
     global temp_film_info
     temp_film_info.append(message.text)
     await message.delete()
-    await Form.director.set()
+    await Form_films.director.set()
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
     global temp_delete_message
-    temp_delete_message = await message.answer(f"Введите автора цитаты:", reply_markup=keyboard)
+    temp_delete_message = await message.answer(f"Введите режиссера:", reply_markup=keyboard)
 
 
-@dp.message_handler(state=Form.director)
+@dp.message_handler(state=Form_films.director)
 async def input_timecodes(message: types.Message, state: FSMContext):
     await state.finish()
     global temp_film_info
     temp_film_info.append(message.text)
     await message.delete()
-    await Form.timecodes.set()
+    await Form_films.timecodes.set()
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
     global temp_delete_message
     temp_delete_message = await message.answer(f"Введите реперные точки:", reply_markup=keyboard)
 
 
-@dp.message_handler(state=Form.timecodes)
+@dp.message_handler(state=Form_films.timecodes)
 async def input_link(message: types.Message, state: FSMContext):
     await state.finish()
     global temp_film_info
     temp_film_info.append(message.text)
     await message.delete()
-    await Form.link.set()
+    await Form_films.link.set()
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
     global temp_delete_message
     temp_delete_message = await message.answer(f"Введите ссылку:", reply_markup=keyboard)
 
 
-@dp.message_handler(state=Form.link)
+@dp.message_handler(state=Form_films.link)
 async def accept_quote_and_author(message: types.Message, state: FSMContext):
     await state.finish()
     global temp_delete_message
@@ -214,8 +214,8 @@ async def give_film_card(call: types.CallbackQuery):
         keyboard.add(types.InlineKeyboardButton(text='Модерировать рецензии',
                                                 callback_data=f'moderate|{film_name}|{director}|{user_id}'))
     keyboard.add(types.InlineKeyboardButton(text='Оценить фильм', callback_data=f'rate|{film_name}|{director}'),
-                 # types.InlineKeyboardButton(text='Оставить рецензию',
-                  #                          callback_data=f'leave review|{film_name}|{director}|{user_id}'),
+                 types.InlineKeyboardButton(text='Оставить рецензию',
+                                            callback_data=f'leave review|{user_id}|{film_name}|{director}'),
                  types.InlineKeyboardButton(text='Показать рецензии',
                                             callback_data=f'show reviews|{film_name}|{director}|{user_id}'))
     text = f'{film.name}\n{film.director}\n{film.timecodes}\nСсылка на просмотр фильма: {film.link}'
@@ -223,6 +223,56 @@ async def give_film_card(call: types.CallbackQuery):
     for i in film.rating.keys():
         rating = f'{rating}{i}: {film.rating[i]}\n'
     await call.message.answer(text=f'{text}\n{rating}', reply_markup=keyboard)
+
+
+class FormReview(StatesGroup):
+    text = State()
+    author = State()
+
+
+@dp.callback_query_handler(lambda call: True if re.fullmatch(r'leave review\|[^|]*\|[^|]*\|[^|]*', call.data) else False)
+async def input_quote(call: types.CallbackQuery):
+    await FormReview.text.set()
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    await call.message.edit_text(f"Введите рецензию:", reply_markup=keyboard)
+    global temp_review_info
+    temp_review_info = call.data.split('|')[1:]
+
+
+@dp.message_handler(state=FormReview.text)
+async def input_text(message: types.Message, state: FSMContext):
+    await state.finish()
+    global temp_review_info
+    temp_review_info.append(message.text)
+    await message.delete()
+    await FormReview.author.set()
+    global temp_delete_message
+    await temp_delete_message.delete()
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(
+        types.InlineKeyboardButton(text="Сохранить", callback_data=f"save_new_review"),
+        types.InlineKeyboardButton(text="Отмена", callback_data="cancel_save_review"))
+    await temp_message_quote.message.edit_text(
+        f"Окончательный вид рецензии:\n{message.text}\nСохранить данную рецензию?",
+        reply_markup=keyboard)
+    await message.delete()
+
+
+@dp.callback_query_handler(text='save_new_review')
+async def save_new_review(call: types.CallbackQuery, state: FSMContext):
+    global temp_review_info
+    film = await CinemaCard.get_card_from_csv(temp_review_info[1], temp_review_info[2])
+    film.add_review_to_csv(temp_review_info[0], temp_review_info[4], CinemaCard.path_to_unseen_reviews)
+    await call.message.edit_text('Рецензия успешно сохранена!')
+    temp_review_info = []
+
+
+@dp.callback_query_handler(text='cancel_save_review')
+async def cancel_save_review(call: types.CallbackQuery, state: FSMContext):
+    global temp_review_info
+    await call.message.edit_text('Рецензия не сохранена!')
+    temp_review_info = []
 
 
 @dp.callback_query_handler(lambda call: True if re.fullmatch(r'show reviews\|[^|]*\|[^|]*\|[^|]*', call.data) else False)

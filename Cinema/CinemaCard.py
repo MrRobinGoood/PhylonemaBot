@@ -7,6 +7,7 @@ class CinemaCard(object):
     __path_to_rates = r'resources/Cinema/Rates.csv'
     __path_to_unseen_reviews = r'resources/Cinema/UnseenReviews.csv'
     __path_to_applied_reviews = r'resources/Cinema/AppliedReviews.csv'
+
     cinema_cards_base = pd.read_csv(__path_to_cards, sep=';')
     rates_base = pd.read_csv(__path_to_rates, sep=';')
 
@@ -51,7 +52,7 @@ class CinemaCard(object):
                       'Художественная глубина',
                       'Общее впечатление')
         self.rating: dict = {x: self.calculate_average_rating(x) for x in categories}
-        self.unseen_reviews = self.get_reviews_from_csv(self.__path_to_unseen_reviews)
+        self.unseen_reviews = self.get_reviews_from_csv(self.path_to_unseen_reviews)
         self.applied_reviews = self.get_reviews_from_csv(self.__path_to_applied_reviews)
         self.unseen_reviews_amount = len(tuple(self.unseen_reviews))
         self.applied_reviews_amount = len(tuple(self.applied_reviews))
@@ -100,26 +101,22 @@ class CinemaCard(object):
         return next(self.applied_reviews)
 
     async def apply_review(self, id_: str):
-        unseen_reviews_base = pd.read_csv(self.__path_to_unseen_reviews, sep=';')
+        unseen_reviews_base = pd.read_csv(self.path_to_unseen_reviews, sep=';')
         review = unseen_reviews_base.loc[(unseen_reviews_base['Название'] == self.name) &
                                          (unseen_reviews_base['Режиссер'] == self.director) &
                                          (unseen_reviews_base['Автор'] == id_)]
         review_index = review.index[0]
         unseen_reviews_base.drop(review_index)
-        unseen_reviews_base.to_csv(self.__path_to_unseen_reviews, sep=';')
+        unseen_reviews_base.to_csv(self.path_to_unseen_reviews, sep=';')
         applied_reviews_base = pd.read_csv(self.__path_to_applied_reviews, sep=';')
         applied_reviews_base = pd.concat(applied_reviews_base, review)
         applied_reviews_base.to_csv(self.__path_to_applied_reviews, sep=';')
 
     async def decline_review(self, id_: str):
-        unseen_reviews_base = pd.read_csv(self.__path_to_unseen_reviews, sep=';')
+        unseen_reviews_base = pd.read_csv(self.path_to_unseen_reviews, sep=';')
         review = unseen_reviews_base.loc[(unseen_reviews_base['Название'] == self.name) &
                                          (unseen_reviews_base['Режиссер'] == self.director) &
                                          (unseen_reviews_base['Автор'] == id_)]
         review_index = review.index[0]
         unseen_reviews_base.drop(review_index)
-        unseen_reviews_base.to_csv(self.__path_to_unseen_reviews, sep=';')
-
-
-if __name__ == '__main__':
-    a = CinemaCard()
+        unseen_reviews_base.to_csv(self.path_to_unseen_reviews, sep=';')
