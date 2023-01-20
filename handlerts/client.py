@@ -33,7 +33,8 @@ DEFAULT_PAGES_PARAMS = [0, 5]
 PHILOSOPHY_COURSE_PATH = 'resources/philosophy_course'
 LITERATURE_COURSE_PATH = 'resources/literature'
 
-ADMINS = {828256665: 'Бартенев Андрей', 1144869308: 'Авдошин Максим', 1048347854: 'Василиса'}
+ADMINS = {828256665: 'Бартенев Андрей', 1144869308: 'Авдошин Максим', 1048347854: 'Василиса',
+          703787945: 'Малышев Владислав Борисович'}
 global temp_message_quote
 global temp_delete_message
 global new_film
@@ -693,6 +694,7 @@ async def give_info(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="🎬Киноклуб \"Философия кино\"", callback_data="cinema_club"))
     keyboard.add(types.InlineKeyboardButton(text="🧑‍💻👩‍💻Разработчики бота", callback_data="developers"))
+    keyboard.add(types.InlineKeyboardButton(text="Список литературы📚", callback_data="list_of_literature"))
     await message.answer("Общая_информация:", reply_markup=keyboard)
 
 
@@ -710,6 +712,15 @@ async def cinema_club(call: types.CallbackQuery):
 async def developers(call: types.CallbackQuery):
     await call.message.answer(
         "Данный бот был разработан студентами СамГТУ 2-ИАИТ-109😎\nСпециально для Студактива \"Знание\", Киноклуба \"Философия кино\"\nУчастники и разработчики:\n👉Бартенев А.В\n👉Авдошин М.А\n👉Малышев М.А.\n👉Мурыгин Д.А.\n👉Строкин И.А\n👉Пасюга А.А.\n👉Ермолин К.П.\n👉Рябова Д.А\n👉Плюхин В.К.")
+
+@dp.callback_query_handler(text="list_of_literature")
+async def list_of_literature(call: types.CallbackQuery):
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Античная философия", url='https://spravochnick.ru/filosofiya/istoriya_zapadnoy_filosofii/antichnaya_filosofiya/periody_razvitiya_antichnoy_filosofii/#osnovnye-periody-razvitiya-antichnoy-filosofii'))
+    keyboard.add(types.InlineKeyboardButton(text="Экзистенцианализм", url='https://lifehacker.ru/ekzistencializm/'))
+    keyboard.add(types.InlineKeyboardButton(text="Постмодернизм", url='https://bigenc.ru/philosophy/text/3162376'))
+
+    await call.message.answer('Список литературы📚:', reply_markup=keyboard)
 
 
 @dp.callback_query_handler()
