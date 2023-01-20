@@ -34,8 +34,6 @@ LITERATURE_COURSE_PATH = 'resources/literature'
 ADMINS = {828256665: 'Бартенев Андрей', 1144869308: 'Авдошин Максим', 1048347854: 'Василиса'}
 global temp_message_quote
 global temp_delete_message
-
-admins = {1144869308: 'Авдошин Максим'}
 global new_film
 
 
@@ -109,7 +107,7 @@ async def give_cinema(message: types.Message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     print(message.from_user.id)
     directors = set(CinemaCard.cinema_cards_base['Режиссер'])
-    if message.from_user.id in list(admins.keys()):
+    if message.from_user.id in list(ADMINS.keys()):
         keyboard.add(types.InlineKeyboardButton(text='Добавить карточку фильма', callback_data='add_card'))
     for i in directors:
         keyboard.add(types.InlineKeyboardButton(text=i, callback_data=f'{i}|{message.from_user.id}'))
@@ -138,6 +136,10 @@ class Form_films(StatesGroup):
     director = State()
     timecodes = State()
     link = State()
+
+    quote = State()
+    author = State()
+
 
 
 @dp.message_handler(state=Form_films.card)
@@ -208,7 +210,7 @@ async def give_film_card(call: types.CallbackQuery):
     user_id = int(user_id)
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
     keyboard = types.InlineKeyboardMarkup(row_width=1)
-    if user_id in list(admins.keys()):
+    if user_id in list(ADMINS.keys()):
         keyboard.add(types.InlineKeyboardButton(text='Модерировать рецензии',
                                                 callback_data=f'moderate|{film_name}|{director}|{user_id}'))
     keyboard.add(types.InlineKeyboardButton(text='Оценить фильм', callback_data=f'rate|{film_name}|{director}'),
@@ -405,10 +407,10 @@ async def input_quote(call: types.CallbackQuery):
     temp_message_quote = call
 
 
-class Form(StatesGroup):
-    quote = State()
-    author = State()
-    save = State()
+# class Form(StatesGroup):
+#     quote = State()
+#     author = State()
+#     save = State()
 
 
 @dp.message_handler(state=Form.quote)
