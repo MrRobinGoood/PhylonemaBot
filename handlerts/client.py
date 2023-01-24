@@ -25,11 +25,14 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 import random
 from typing import List
 
+import json
+import hashlib
 
 # Значения: [С какого файла(строки) начинать, Сколько файлов(inline кнопок) выводить]
 DEFAULT_PAGES_PARAMS = [0, 5]
 PHILOSOPHY_COURSE_PATH = 'resources/philosophy_course'
 LITERATURE_COURSE_PATH = 'resources/literature'
+TEMP_ID_PATH = 'resources/temp/temp_id.json'
 
 ADMINS = {828256665: 'Бартенев Андрей', 1144869308: 'Авдошин Максим', 1048347854: 'Василиса'}
 global temp_message_quote
@@ -69,6 +72,34 @@ async def append_to_file(input: str, name: str, directory_in_resources: str):
             opened_file.write(input)
     except OSError as e:
         print(e)
+
+
+def callback_encode(sep: str, input_str: str, path_to_json: str) -> str:
+    input_str_id = f'{sep}|{str(int(hashlib.sha1(input_str.encode("utf-8")).hexdigest(), 16) % (10 ** 8))}'
+    result = ''
+    try:
+        with open(path_to_json) as js_read:
+            opened_json = json.load(js_read)
+            if input_str_id not in opened_json:
+                opened_json[input_str_id] = input_str
+
+        with open(path_to_json, 'w') as js_write:
+            json.dump(opened_json, js_write)
+        result = input_str_id
+    except OSError as e:
+        print(e)
+    return result
+
+
+async def callback_decode(sep: str, str_id: str, path_to_json: str) -> str:
+    result = ''
+    try:
+        with open(path_to_json) as js_read:
+            opened_json = json.load(js_read)
+            result = opened_json[f'{sep}|{str_id}']
+    except OSError as e:
+        print(e)
+    return result
 
 
 async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
@@ -136,9 +167,6 @@ class Form_films(StatesGroup):
     director = State()
     timecodes = State()
     link = State()
-
-    quote = State()
-    author = State()
 
 
 
@@ -407,10 +435,10 @@ async def input_quote(call: types.CallbackQuery):
     temp_message_quote = call
 
 
-# class Form(StatesGroup):
-#     quote = State()
-#     author = State()
-#     save = State()
+class Form(StatesGroup):
+    quote = State()
+    author = State()
+
 
 
 @dp.message_handler(state=Form.quote)
