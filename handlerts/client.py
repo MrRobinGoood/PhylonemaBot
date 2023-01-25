@@ -1,9 +1,12 @@
+
 import pandas as pd
+
 import asyncio
 import random
 from typing import List
 import re
 import pymorphy2
+
 
 morph = pymorphy2.MorphAnalyzer()
 from nltk.tokenize import word_tokenize
@@ -28,10 +31,15 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 import random
 from typing import List
 
+
+import json
+import hashlib
+
 # Значения: [С какого файла(строки) начинать, Сколько файлов(inline кнопок) выводить]
 DEFAULT_PAGES_PARAMS = [0, 5]
 PHILOSOPHY_COURSE_PATH = 'resources/philosophy_course'
 LITERATURE_COURSE_PATH = 'resources/literature'
+TEMP_ID_PATH = 'resources/temp/temp_id.json'
 
 ADMINS = {828256665: 'Бартенев Андрей', 1144869308: 'Авдошин Максим', 1048347854: 'Василиса',
           703787945: 'Малышев Владислав Борисович'}
@@ -72,6 +80,34 @@ async def append_to_file(input: str, name: str, directory_in_resources: str):
             opened_file.write(input)
     except OSError as e:
         print(e)
+
+
+async def callback_encode(sep: str, input_str: str, path_to_json: str) -> str:
+    input_str_id = f'{sep}{str(int(hashlib.sha1(input_str.encode("utf-8")).hexdigest(), 16) % (10 ** 8))}'
+    result = ''
+    try:
+        with open(path_to_json) as js_read:
+            opened_json = json.load(js_read)
+            if input_str_id not in opened_json:
+                opened_json[input_str_id] = input_str
+
+        with open(path_to_json, 'w') as js_write:
+            json.dump(opened_json, js_write)
+        result = input_str_id
+    except OSError as e:
+        print(e)
+    return result
+
+
+async def callback_decode(str_id: str, path_to_json: str) -> str:
+    result = ''
+    try:
+        with open(path_to_json) as js_read:
+            opened_json = json.load(js_read)
+            result = str(opened_json[str_id])
+    except OSError as e:
+        print(e)
+    return result
 
 
 async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
@@ -624,8 +660,10 @@ async def give_course_pages(call, page_params, attribute_and_path):
 
     for theme_path in selected_themes:
         if attribute == 'os.listdir':
+            print(theme_path)
             keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0], callback_data=theme_path))
         if attribute == 'c':
+            print('c',theme_path)
             keyboard.add(types.InlineKeyboardButton(text=theme_path, callback_data=theme_path))
     if attribute == 'l':
         for i in range(len(urls)):
@@ -634,8 +672,10 @@ async def give_course_pages(call, page_params, attribute_and_path):
     page = int(page_params[0] / DEFAULT_PAGES_PARAMS[1])
 
     keyboard.add(
-        types.InlineKeyboardButton(text='Назад', callback_data=f'p:{page}:{attribute}:{path}'),
-        types.InlineKeyboardButton(text='Вперед', callback_data=f'n:{page}:{attribute}:{path}'))
+        types.InlineKeyboardButton(text='Назад',
+                                   callback_data= await callback_encode('LCQ:', f'p:{page}:{attribute}:{path}', TEMP_ID_PATH)),
+        types.InlineKeyboardButton(text='Вперед',
+                                   callback_data= await callback_encode('LCQ:', f'n:{page}:{attribute}:{path}', TEMP_ID_PATH)))
     print(f'p:{page}:{attribute}:{path}')
     print('размер', utf8len(f'p:{page}:{attribute}:{path}'))
 
@@ -661,10 +701,14 @@ def change_page_params(page):
 
 
 async def course_previous_next(call):
-    pressed_button = call.data.split(':')[0]
-    page = int(call.data.split(':')[1])
+    print(call.data)
+    print(await callback_decode(call.data, TEMP_ID_PATH))
+
+    call_data_dec = await callback_decode(call.data, TEMP_ID_PATH)
+    pressed_button = call_data_dec.split(':')[0]
+    page = int(call_data_dec.split(':')[1])
     # ниже переписать нормально
-    path_directory = call.data.split(':')[2] + ':' + call.data.split(':')[3]
+    path_directory = call_data_dec.split(':')[2] + ':' + call_data_dec.split(':')[3]
     if pressed_button == 'n':
         page += 1
         await give_course_pages(call, change_page_params(page), path_directory)
@@ -725,7 +769,7 @@ async def list_of_literature(call: types.CallbackQuery):
 
 @dp.callback_query_handler()
 async def catch_all_callbacks(call: types.CallbackQuery):
-    if call.data.split(':')[0] in ['p', 'n']:
+    if call.data.split(':')[0] == 'LCQ':
         # print('catch', call.data)
         await course_previous_next(call)
         return

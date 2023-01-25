@@ -7,7 +7,7 @@ import os
 from aiogram.utils import executor
 
 # token=os.getenv('TOKEN')
-bot = Bot('5884825249:AAEz0F10Yy_kAi5GDfkxVDwbDV-k-VUOeCw')
+bot = Bot('5347751121:AAGIRh30ozMqnwZEDqVUOqmbWeB5gfHBdZk')
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
