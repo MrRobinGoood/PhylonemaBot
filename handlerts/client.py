@@ -1,7 +1,15 @@
+
+import pandas as pd
+
 import asyncio
 import random
 from typing import List
 import re
+import pymorphy2
+
+
+morph = pymorphy2.MorphAnalyzer()
+from nltk.tokenize import word_tokenize
 
 import os
 
@@ -23,6 +31,7 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 import random
 from typing import List
 
+
 import json
 import hashlib
 
@@ -32,7 +41,8 @@ PHILOSOPHY_COURSE_PATH = 'resources/philosophy_course'
 LITERATURE_COURSE_PATH = 'resources/literature'
 TEMP_ID_PATH = 'resources/temp/temp_id.json'
 
-ADMINS = {828256665: 'Бартенев Андрей', 1144869308: 'Авдошин Максим', 1048347854: 'Василиса'}
+ADMINS = {828256665: 'Бартенев Андрей', 1144869308: 'Авдошин Максим', 1048347854: 'Василиса',
+          703787945: 'Малышев Владислав Борисович'}
 global temp_message_quote
 global temp_delete_message
 global new_film
@@ -527,6 +537,89 @@ async def send_quotes(call: types.CallbackQuery, state: FSMContext):
     temp_message_quote = ''
 
 
+@dp.message_handler(commands=['Словарь'])
+async def give_category(message: types.Message):
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Ввести фразу", callback_data="word_input"))
+    await bot.send_message(message.from_user.id,
+                           'Этот словарь📖 может кратко раскрыть значения терминов из философии. Просто нажми кнопку ниже👇 и введи слово или предложение, например спроси что такое схоластика❓',
+                           reply_markup=keyboard)
+
+
+class Form_Dict(StatesGroup):
+    word = State()
+
+
+@dp.callback_query_handler(text='word_input')
+async def word_input(call: types.CallbackQuery):
+    await Form_Dict.word.set()
+
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_word"))
+    global temp_delete_message
+    temp_delete_message = await call.message.edit_text(f"Введите слово или предложение:", reply_markup=keyboard)
+
+
+def read_dictionary_csv(temp_list_path):
+    frame_temp = pd.read_csv(temp_list_path, header=None)
+    temp = frame_temp.values.tolist()
+    list_temp = []
+    for i in range(len(temp)):
+        list_temp.append(temp[i][0])
+    return list_temp
+
+
+def normalize_input(input_words):
+    tokens = word_tokenize(input_words, language="russian")
+    lemma_tokens = []
+    for word in tokens:
+        p = morph.parse(word)[0]
+        if p.tag.POS in ['NOUN', 'COMP', 'VERB', 'INTJ', 'INFN', 'PRTF', 'PRTS', 'NUMR', 'ADVB', 'PREP', 'CONJ', 'PRED',
+                         'PRCL', 'ADJF', 'ADJS', 'GRND', 'NPRO']:
+            lemma_tokens.append(p.normal_form)
+    return lemma_tokens
+
+
+async def search_in_dict(input_words, message):
+    normal_words = normalize_input(input_words)
+    dictionary = read_dictionary_csv('resources/dictionary/dictionary1.csv')
+    meanings = read_dictionary_csv('resources/dictionary/meanings1.csv')
+    presentation = read_dictionary_csv('resources/dictionary/presentation1.csv')
+    is_in_dict = False
+    for word in normal_words:
+        if word in dictionary:
+            is_in_dict = True
+            await message.answer(
+                f'Что я нашёл😌📚\n{presentation[dictionary.index(word)].strip()} - {meanings[dictionary.index(word)].strip()}')
+    if not is_in_dict:
+        await message.answer(
+            'К сожалению, по этому запросу я ничего не смог найти😔, но вы можете попробовать найти другие слова или предложения📕')
+
+
+@dp.message_handler(state=Form_Dict)
+async def give_word_from_dict(message: types.Message, state: FSMContext):
+    await state.finish()
+
+    await message.answer(f"Вы ввели:\n{message.text}")
+    await search_in_dict(message.text, message)
+    await temp_delete_message.delete()
+    await message.delete()
+
+
+@dp.callback_query_handler(text='cancel_input_word', state=[Form_Dict.word])
+async def send_quotes(call: types.CallbackQuery, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:
+        return
+    await state.finish()
+
+    try:
+        global temp_delete_message
+        await temp_delete_message.edit_text('Ввод слова или предложения отменен.')
+    except NameError as e:
+        print(e)
+
+
 @dp.message_handler(commands=["Курс_философии"])
 async def give_course(message: types.Message):
     await give_course_pages(message, DEFAULT_PAGES_PARAMS, 'os.listdir:' + PHILOSOPHY_COURSE_PATH)
@@ -645,6 +738,7 @@ async def give_info(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="🎬Киноклуб \"Философия кино\"", callback_data="cinema_club"))
     keyboard.add(types.InlineKeyboardButton(text="🧑‍💻👩‍💻Разработчики бота", callback_data="developers"))
+    keyboard.add(types.InlineKeyboardButton(text="Список литературы📚", callback_data="list_of_literature"))
     await message.answer("Общая_информация:", reply_markup=keyboard)
 
 
@@ -662,6 +756,15 @@ async def cinema_club(call: types.CallbackQuery):
 async def developers(call: types.CallbackQuery):
     await call.message.answer(
         "Данный бот был разработан студентами СамГТУ 2-ИАИТ-109😎\nСпециально для Студактива \"Знание\", Киноклуба \"Философия кино\"\nУчастники и разработчики:\n👉Бартенев А.В\n👉Авдошин М.А\n👉Малышев М.А.\n👉Мурыгин Д.А.\n👉Строкин И.А\n👉Пасюга А.А.\n👉Ермолин К.П.\n👉Рябова Д.А\n👉Плюхин В.К.")
+
+@dp.callback_query_handler(text="list_of_literature")
+async def list_of_literature(call: types.CallbackQuery):
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text="Античная философия", url='https://spravochnick.ru/filosofiya/istoriya_zapadnoy_filosofii/antichnaya_filosofiya/periody_razvitiya_antichnoy_filosofii/#osnovnye-periody-razvitiya-antichnoy-filosofii'))
+    keyboard.add(types.InlineKeyboardButton(text="Экзистенцианализм", url='https://lifehacker.ru/ekzistencializm/'))
+    keyboard.add(types.InlineKeyboardButton(text="Постмодернизм", url='https://bigenc.ru/philosophy/text/3162376'))
+
+    await call.message.answer('Список литературы📚:', reply_markup=keyboard)
 
 
 @dp.callback_query_handler()
@@ -729,4 +832,4 @@ def register_handler_client(dp: Dispatcher):
     dp.register_message_handler(command_start, commands=['start', 'help'])
     dp.register_message_handler(why_need, commands=['Зачем_ты_нужен?'])
     dp.register_message_handler(give_category, commands=['Цитаты', 'Курс_философии', 'Литература', 'Общая_информация',
-                                                         'Кино'])
+                                                         'Кино', 'Словарь'])
