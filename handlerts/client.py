@@ -657,11 +657,9 @@ async def give_course_pages(call, page_params, attribute_and_path):
 
     for theme_path in selected_themes:
         if attribute == 'os.listdir':
-            print(1, theme_path)
             keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0],
                                                     callback_data= await callback_encode('LCQ:',theme_path,TEMP_ID_PATH)))
         if attribute == 'c':
-            print('c', theme_path)
             keyboard.add(
                 types.InlineKeyboardButton(text=theme_path, callback_data=await callback_encode('LCQ:',theme_path,TEMP_ID_PATH)))
     if attribute == 'l':
@@ -677,8 +675,6 @@ async def give_course_pages(call, page_params, attribute_and_path):
         types.InlineKeyboardButton(text='Вперед',
                                    callback_data=await callback_encode('LCQ:', f'n:{page}:{attribute}:{path}',
                                                                        TEMP_ID_PATH)))
-    print(f'p:{page}:{attribute}:{path}')
-    print('размер', utf8len(f'p:{page}:{attribute}:{path}'))
 
     if type(call) != types.CallbackQuery:
         # в данном случае call это переданный message
@@ -702,9 +698,6 @@ def change_page_params(page):
 
 
 async def course_previous_next(call):
-    print(call.data)
-    print(await callback_decode(call.data, TEMP_ID_PATH))
-
     call_data_dec = await callback_decode(call.data, TEMP_ID_PATH)
     pressed_button = call_data_dec.split(':')[0]
     page = int(call_data_dec.split(':')[1])
@@ -779,18 +772,15 @@ async def catch_all_callbacks(call: types.CallbackQuery):
         decoded = await callback_decode(call.data, TEMP_ID_PATH)
 
         if  decoded.split(':')[0] in ['p', 'n']:
-            print('11')
             # print('catch', call.data)
             await course_previous_next(call)
             return
 
         if decoded.split(':')[0] in os.listdir(PHILOSOPHY_COURSE_PATH):
-            print('22')
             await give_philo_topics(call)
             return
 
         if decoded.split(':')[0] in os.listdir(LITERATURE_COURSE_PATH):
-            print('33')
             await give_lit_topics(call)
             return
 
