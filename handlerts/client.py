@@ -1,4 +1,3 @@
-
 import pandas as pd
 
 import asyncio
@@ -6,7 +5,6 @@ import random
 from typing import List
 import re
 import pymorphy2
-
 
 morph = pymorphy2.MorphAnalyzer()
 from nltk.tokenize import word_tokenize
@@ -30,7 +28,6 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 
 import random
 from typing import List
-
 
 import json
 import hashlib
@@ -104,10 +101,10 @@ async def callback_decode(str_id: str, path_to_json: str) -> str:
     try:
         with open(path_to_json) as js_read:
             opened_json = json.load(js_read)
-            result = str(opened_json[str_id])
+            result = opened_json[str_id]
     except OSError as e:
         print(e)
-    return result
+    return str(result)
 
 
 async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
@@ -660,11 +657,13 @@ async def give_course_pages(call, page_params, attribute_and_path):
 
     for theme_path in selected_themes:
         if attribute == 'os.listdir':
-            print(theme_path)
-            keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0], callback_data=theme_path))
+            print(1, theme_path)
+            keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0],
+                                                    callback_data= await callback_encode('LCQ:',theme_path,TEMP_ID_PATH)))
         if attribute == 'c':
-            print('c',theme_path)
-            keyboard.add(types.InlineKeyboardButton(text=theme_path, callback_data=theme_path))
+            print('c', theme_path)
+            keyboard.add(
+                types.InlineKeyboardButton(text=theme_path, callback_data=await callback_encode('LCQ:',theme_path,TEMP_ID_PATH)))
     if attribute == 'l':
         for i in range(len(urls)):
             keyboard.add(types.InlineKeyboardButton(text=selected_themes[i], url=urls[i]))
@@ -673,9 +672,11 @@ async def give_course_pages(call, page_params, attribute_and_path):
 
     keyboard.add(
         types.InlineKeyboardButton(text='Назад',
-                                   callback_data= await callback_encode('LCQ:', f'p:{page}:{attribute}:{path}', TEMP_ID_PATH)),
+                                   callback_data=await callback_encode('LCQ:', f'p:{page}:{attribute}:{path}',
+                                                                       TEMP_ID_PATH)),
         types.InlineKeyboardButton(text='Вперед',
-                                   callback_data= await callback_encode('LCQ:', f'n:{page}:{attribute}:{path}', TEMP_ID_PATH)))
+                                   callback_data=await callback_encode('LCQ:', f'n:{page}:{attribute}:{path}',
+                                                                       TEMP_ID_PATH)))
     print(f'p:{page}:{attribute}:{path}')
     print('размер', utf8len(f'p:{page}:{attribute}:{path}'))
 
@@ -757,10 +758,12 @@ async def developers(call: types.CallbackQuery):
     await call.message.answer(
         "Данный бот был разработан студентами СамГТУ 2-ИАИТ-109😎\nСпециально для Студактива \"Знание\", Киноклуба \"Философия кино\"\nУчастники и разработчики:\n👉Бартенев А.В\n👉Авдошин М.А\n👉Малышев М.А.\n👉Мурыгин Д.А.\n👉Строкин И.А\n👉Пасюга А.А.\n👉Ермолин К.П.\n👉Рябова Д.А\n👉Плюхин В.К.")
 
+
 @dp.callback_query_handler(text="list_of_literature")
 async def list_of_literature(call: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Античная философия", url='https://spravochnick.ru/filosofiya/istoriya_zapadnoy_filosofii/antichnaya_filosofiya/periody_razvitiya_antichnoy_filosofii/#osnovnye-periody-razvitiya-antichnoy-filosofii'))
+    keyboard.add(types.InlineKeyboardButton(text="Античная философия",
+                                            url='https://spravochnick.ru/filosofiya/istoriya_zapadnoy_filosofii/antichnaya_filosofiya/periody_razvitiya_antichnoy_filosofii/#osnovnye-periody-razvitiya-antichnoy-filosofii'))
     keyboard.add(types.InlineKeyboardButton(text="Экзистенцианализм", url='https://lifehacker.ru/ekzistencializm/'))
     keyboard.add(types.InlineKeyboardButton(text="Постмодернизм", url='https://bigenc.ru/philosophy/text/3162376'))
 
@@ -771,23 +774,32 @@ async def list_of_literature(call: types.CallbackQuery):
 async def catch_all_callbacks(call: types.CallbackQuery):
     if call.data.split(':')[0] == 'LCQ':
         # print('catch', call.data)
-        await course_previous_next(call)
-        return
+        # print('tt', await callback_decode(call.data, TEMP_ID_PATH))
+        # print('tt1', type(await callback_decode(call.data, TEMP_ID_PATH)))
+        decoded = await callback_decode(call.data, TEMP_ID_PATH)
 
-    if call.data in os.listdir(PHILOSOPHY_COURSE_PATH):
-        await give_philo_topics(call)
-        return
+        if  decoded.split(':')[0] in ['p', 'n']:
+            print('11')
+            # print('catch', call.data)
+            await course_previous_next(call)
+            return
 
-    if call.data in os.listdir(LITERATURE_COURSE_PATH):
-        await give_lit_topics(call)
-        return
+        if decoded.split(':')[0] in os.listdir(PHILOSOPHY_COURSE_PATH):
+            print('22')
+            await give_philo_topics(call)
+            return
+
+        if decoded.split(':')[0] in os.listdir(LITERATURE_COURSE_PATH):
+            print('33')
+            await give_lit_topics(call)
+            return
 
     await give_text_and_picture(call)
 
 
 async def give_philo_topics(call):
     print('def philo topic', call.data)
-    theme_file = call.data
+    theme_file = await callback_decode(call.data, TEMP_ID_PATH)
     attribute = 'c'
     # ниже переписать недочеты
     await give_course_pages(call, DEFAULT_PAGES_PARAMS, f'{attribute}:{theme_file}')
@@ -795,7 +807,7 @@ async def give_philo_topics(call):
 
 async def give_lit_topics(call):
     print('def lit topic', call.data)
-    theme_file = call.data
+    theme_file = await callback_decode(call.data, TEMP_ID_PATH)
     attribute = 'l'
     # ниже переписать недочеты
     await give_course_pages(call, DEFAULT_PAGES_PARAMS, f'{attribute}:{theme_file}')
@@ -803,10 +815,11 @@ async def give_lit_topics(call):
 
 async def give_text_and_picture(call):
     print('give text and picture')
+    call_data_dec = await callback_decode(call.data,TEMP_ID_PATH)
     for theme_name in os.listdir(PHILOSOPHY_COURSE_PATH):
         theme = await open_file(theme_name, 'philosophy_course', '<new>')
         for topic in theme:
-            if call.data == get_header(topic):
+            if call_data_dec == get_header(topic):
                 try:
                     path = f'resources/pictures/{call.data.strip()}.png'
                     photo = open(path, 'rb')
