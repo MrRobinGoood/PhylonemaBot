@@ -5,8 +5,8 @@ import numpy as np
 class CinemaCard(object):
     __path_to_cards = r'resources/Cinema/CinemaCards.csv'
     __path_to_rates = r'resources/Cinema/Rates.csv'
-    __path_to_unseen_reviews = r'resources/Cinema/UnseenReviews.csv'
-    __path_to_applied_reviews = r'resources/Cinema/AppliedReviews.csv'
+    path_to_unseen_reviews = r'resources/Cinema/UnseenReviews.csv'
+    path_to_applied_reviews = r'resources/Cinema/AppliedReviews.csv'
 
     cinema_cards_base = pd.read_csv(__path_to_cards, sep=';')
     rates_base = pd.read_csv(__path_to_rates, sep=';')
@@ -53,7 +53,7 @@ class CinemaCard(object):
                       'Общее впечатление')
         self.rating: dict = {x: self.calculate_average_rating(x) for x in categories}
         self.unseen_reviews = self.get_reviews_from_csv(self.path_to_unseen_reviews)
-        self.applied_reviews = self.get_reviews_from_csv(self.__path_to_applied_reviews)
+        self.applied_reviews = self.get_reviews_from_csv(self.path_to_applied_reviews)
         self.unseen_reviews_amount = len(tuple(self.unseen_reviews))
         self.applied_reviews_amount = len(tuple(self.applied_reviews))
 
@@ -69,6 +69,7 @@ class CinemaCard(object):
         if rating is None:
             rating = [0, 0, 0, 0, 0, 0, 0, 0]
         if len(rating) == 8:
+            rating = ['Название', 'Режиссер'] + rating
             length = len(self.rates_base)
             self.rates_base.loc[length] = rating
             self.rates_base.to_csv(self.__path_to_rates, sep=';')
@@ -108,9 +109,9 @@ class CinemaCard(object):
         review_index = review.index[0]
         unseen_reviews_base.drop(review_index)
         unseen_reviews_base.to_csv(self.path_to_unseen_reviews, sep=';')
-        applied_reviews_base = pd.read_csv(self.__path_to_applied_reviews, sep=';')
+        applied_reviews_base = pd.read_csv(self.path_to_applied_reviews, sep=';')
         applied_reviews_base = pd.concat(applied_reviews_base, review)
-        applied_reviews_base.to_csv(self.__path_to_applied_reviews, sep=';')
+        applied_reviews_base.to_csv(self.path_to_applied_reviews, sep=';')
 
     async def decline_review(self, id_: str):
         unseen_reviews_base = pd.read_csv(self.path_to_unseen_reviews, sep=';')
