@@ -121,4 +121,3 @@ class CinemaCard(object):
         review_index = review.index[0]
         unseen_reviews_base.drop(review_index, inplace=True)
         unseen_reviews_base.to_csv(self.path_to_unseen_reviews, index=False, sep=';')
-        applied_reviews_base = pd.read_csv(self.path_to_applied_reviews, sep=';')

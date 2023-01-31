@@ -273,8 +273,7 @@ async def give_film_card(call: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     data = f'{user_id}|{film_name}|{director}'
     if user_id in list(ADMINS.keys()):
-        data_reviews = f'{data}|0'
-        callback_data = await asyncio.create_task(callback_encode('moderate|', data_reviews, TEMP_ID_PATH))
+        callback_data = await asyncio.create_task(callback_encode('moderate|', data, TEMP_ID_PATH))
         keyboard.add(types.InlineKeyboardButton(text='Модерировать рецензии',
                                                 callback_data=callback_data))
     for i in callback_keys.keys():
@@ -426,21 +425,20 @@ async def rate_apply(call: types.CallbackQuery):
 @dp.callback_query_handler(lambda call: True if re.fullmatch(r'moderate\|[^|]*', call.data) else False)
 async def moderate_reviews(call: types.CallbackQuery):
     data = await asyncio.create_task(callback_decode(call.data, TEMP_ID_PATH))
-    user_id, film_name, director, iteration, *_ = data.split('|')
-    iteration = int(iteration)
+    user_id, film_name, director, *_ = data.split('|')
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
     return_callback_data = await asyncio.create_task(callback_encode('film|',
                                                                      f'{user_id}|{film_name}|{director}',
                                                                      TEMP_ID_PATH))
     try:
-        id_, text = film.get_next_unseen_review(iteration)
+        id_, text = film.get_next_unseen_review(0)
         apply_callback_data = await asyncio.create_task(callback_encode('apply|',
                                                                         f'{user_id}|{film_name}|{director}'
-                                                                        f'|{iteration}|{id_}',
+                                                                        f'|{id_}',
                                                                         TEMP_ID_PATH))
         decline_callback_data = await asyncio.create_task(callback_encode('decline|',
                                                                           f'{user_id}|{film_name}|{director}'
-                                                                          f'|{iteration}|{id_}',
+                                                                          f'|{id_}',
                                                                           TEMP_ID_PATH))
     except IndexError as e:
         end_keyboard = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton(text='Назад',
@@ -460,8 +458,7 @@ async def moderate_reviews(call: types.CallbackQuery):
 async def apply_or_decline_review(call: types.CallbackQuery):
     _, data = call.data.split('|')
     data = await asyncio.create_task(callback_decode(f'{_}|{data}', TEMP_ID_PATH))
-    user_id, film_name, director, iteration, id_ = data.split('|')
-    iteration = int(iteration)
+    user_id, film_name, director, id_ = data.split('|')
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
     if _ == 'apply':
         await asyncio.create_task(film.apply_review(id_))
@@ -469,8 +466,7 @@ async def apply_or_decline_review(call: types.CallbackQuery):
         await asyncio.create_task(film.decline_review(id_))
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     callback_data = await asyncio.create_task(callback_encode('moderate|',
-                                                              f'{user_id}|{film_name}|{director}'
-                                                              f'|{iteration + 1}',
+                                                              f'{user_id}|{film_name}|{director}',
                                                               TEMP_ID_PATH))
     keyboard.add(types.InlineKeyboardButton(text='Продолжить',
                                             callback_data=callback_data))
