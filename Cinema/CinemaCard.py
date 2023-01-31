@@ -115,9 +115,10 @@ class CinemaCard(object):
 
     async def decline_review(self, id_: str):
         unseen_reviews_base = pd.read_csv(self.path_to_unseen_reviews, sep=';')
-        review = unseen_reviews_base.loc[(unseen_reviews_base['Название'] == self.name) &
+        review = unseen_reviews_base.loc[(unseen_reviews_base['Название фильма'] == self.name) &
                                          (unseen_reviews_base['Режиссер'] == self.director) &
-                                         (unseen_reviews_base['Автор'] == id_)]
+                                         (unseen_reviews_base['Автор'] == int(id_))]
         review_index = review.index[0]
-        unseen_reviews_base.drop(review_index)
+        unseen_reviews_base.drop(review_index, inplace=True)
         unseen_reviews_base.to_csv(self.path_to_unseen_reviews, index=False, sep=';')
+        applied_reviews_base = pd.read_csv(self.path_to_applied_reviews, sep=';')
