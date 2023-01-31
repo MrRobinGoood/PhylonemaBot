@@ -420,7 +420,7 @@ async def rate_apply(call: types.CallbackQuery):
     await call.message.answer(text='Оценка успешно добавлена!')
 
 
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'moderate\|[^|]', call.data) else False)
+@dp.callback_query_handler(lambda call: True if re.fullmatch(r'moderate\|[^|]*', call.data) else False)
 async def moderate_reviews(call: types.CallbackQuery):
     data = await asyncio.create_task(callback_decode(call.data, TEMP_ID_PATH))
     user_id, film_name, director, iteration, *_ = data.split('|')
@@ -430,16 +430,19 @@ async def moderate_reviews(call: types.CallbackQuery):
                                                                      f'{user_id}|{film_name}|{director}',
                                                                      TEMP_ID_PATH))
     try:
-        id_, text = film.get_next_applied_review(iteration)
+        id_, text = film.get_next_unseen_review(iteration)
+        print(id_, text)
         apply_callback_data = await asyncio.create_task(callback_encode('apply|',
                                                                         f'{user_id}|{film_name}|{director}'
                                                                         f'|{iteration}|{id_}',
                                                                         TEMP_ID_PATH))
+        print(apply_callback_data)
         decline_callback_data = await asyncio.create_task(callback_encode('decline|',
                                                                           f'{user_id}|{film_name}|{director}'
                                                                           f'|{iteration}|{id_}',
                                                                           TEMP_ID_PATH))
-    except IndexError:
+    except IndexError as e:
+        print(e)
         end_keyboard = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton(text='Назад',
                                                                                    callback_data=return_callback_data))
         await call.message.answer(text=f'Больше рецензий нет.', reply_markup=end_keyboard)
@@ -456,14 +459,17 @@ async def moderate_reviews(call: types.CallbackQuery):
 @dp.callback_query_handler(lambda call: True if re.fullmatch(r'apply\|[^|]*|decline\|[^|]*', call.data) else False)
 async def apply_or_decline_review(call: types.CallbackQuery):
     _, data = call.data.split('|')
+    print(f'{_}|{data}')
     data = await asyncio.create_task(callback_decode(f'{_}|{data}', TEMP_ID_PATH))
+    print(data)
     user_id, film_name, director, iteration, id_ = data.split('|')
+    print(id_)
     iteration = int(iteration)
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
     if _ == 'apply':
-        film.apply_review(id_)
+        await asyncio.create_task(film.apply_review(id_))
     else:
-        film.decline_review(id_)
+        await asyncio.create_task(film.decline_review(id_))
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     callback_data = await asyncio.create_task(callback_encode('moderate|',
                                                               f'{user_id}|{film_name}|{director}'
