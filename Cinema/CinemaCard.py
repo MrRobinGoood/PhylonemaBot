@@ -54,8 +54,8 @@ class CinemaCard(object):
         self.rating: dict = {x: self.calculate_average_rating(x) for x in categories}
         self.unseen_reviews = self.get_reviews_from_csv(self.path_to_unseen_reviews)
         self.applied_reviews = self.get_reviews_from_csv(self.path_to_applied_reviews)
-        self.unseen_reviews_amount = len(tuple(self.unseen_reviews))
-        self.applied_reviews_amount = len(tuple(self.applied_reviews))
+        self.unseen_reviews_amount = len(self.unseen_reviews)
+        self.applied_reviews_amount = len(self.applied_reviews)
 
     def get_reviews_from_csv(self, path: str):
         reviews_base = pd.read_csv(path, sep=';')
@@ -63,16 +63,16 @@ class CinemaCard(object):
                                    (reviews_base['Режиссер'] == self.director)]
         ids = list(reviews['Автор'])
         texts = list(reviews['Текст рецензии'])
-        return zip(ids, texts)
+        return tuple(zip(ids, texts))
 
     def add_rating(self, rating=None):
         if rating is None:
             rating = [0, 0, 0, 0, 0, 0, 0, 0]
         if len(rating) == 8:
-            rating = ['Название', 'Режиссер'] + rating
+            rating = [self.name, self.director] + rating
             length = len(self.rates_base)
             self.rates_base.loc[length] = rating
-            self.rates_base.to_csv(self.__path_to_rates, sep=';')
+            self.rates_base.to_csv(self.__path_to_rates, sep=';', index=False)
         else:
             raise ValueError('Not enough values for setting rating')
 
@@ -80,6 +80,7 @@ class CinemaCard(object):
     async def get_card_from_csv(cls, name: str, director: str):
         film_info: pd.DataFrame = cls.cinema_cards_base.loc[(cls.cinema_cards_base['Название'] == name) &
                                                             (cls.cinema_cards_base['Режиссер'] == director)]
+        print(film_info)
         values = film_info.values[0][2:]
         timecodes, link, reviews_amount, *rating = values
         search_result = CinemaCard(name, director, timecodes, link)
@@ -95,11 +96,11 @@ class CinemaCard(object):
         unseen_reviews_base.loc[length] = (user_id, self.name, self.director, review_text)
         unseen_reviews_base.to_csv(path, index=False, sep=';')
 
-    def get_next_unseen_review(self):
-        return next(self.unseen_reviews)
+    def get_next_unseen_review(self, iteration):
+        return self.unseen_reviews[iteration]
 
-    def get_next_applied_review(self):
-        return next(self.applied_reviews)
+    def get_next_applied_review(self, iteration):
+        return self.applied_reviews[iteration]
 
     async def apply_review(self, id_: str):
         unseen_reviews_base = pd.read_csv(self.path_to_unseen_reviews, sep=';')
@@ -108,10 +109,10 @@ class CinemaCard(object):
                                          (unseen_reviews_base['Автор'] == id_)]
         review_index = review.index[0]
         unseen_reviews_base.drop(review_index)
-        unseen_reviews_base.to_csv(self.path_to_unseen_reviews, sep=';')
+        unseen_reviews_base.to_csv(self.path_to_unseen_reviews, index=False, sep=';')
         applied_reviews_base = pd.read_csv(self.path_to_applied_reviews, sep=';')
         applied_reviews_base = pd.concat(applied_reviews_base, review)
-        applied_reviews_base.to_csv(self.path_to_applied_reviews, sep=';')
+        applied_reviews_base.to_csv(self.path_to_applied_reviews, index=False, sep=';')
 
     async def decline_review(self, id_: str):
         unseen_reviews_base = pd.read_csv(self.path_to_unseen_reviews, sep=';')
@@ -120,4 +121,4 @@ class CinemaCard(object):
                                          (unseen_reviews_base['Автор'] == id_)]
         review_index = review.index[0]
         unseen_reviews_base.drop(review_index)
-        unseen_reviews_base.to_csv(self.path_to_unseen_reviews, sep=';')
+        unseen_reviews_base.to_csv(self.path_to_unseen_reviews, index=False, sep=';')
