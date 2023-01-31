@@ -294,7 +294,6 @@ async def give_film_card(call: types.CallbackQuery):
 
 class FormReview(StatesGroup):
     text = State()
-    author = State()
 
 
 @dp.callback_query_handler(
@@ -307,10 +306,12 @@ async def input_review(call: types.CallbackQuery):
     global temp_review_info
     temp_review_info = call.data
 
-@dp.callback_query_handler(text='cancel_input_review', state=[FormReview.text, FormReview.author])
+
+@dp.callback_query_handler(text='cancel_input_review', state=FormReview.text)
 async def cancel_input_review(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
     await call.message.answer('Ввод отменен, пожалуйста, выберите категорию при помощи клавиатуры внизу экрана.')
+
 
 @dp.message_handler(state=FormReview.text)
 async def input_text(message: types.Message, state: FSMContext):
@@ -321,7 +322,6 @@ async def input_text(message: types.Message, state: FSMContext):
     data.append(message.text)
     temp_review_info = data
     await message.delete()
-    await FormReview.author.set()
     return_callback_data = await asyncio.create_task(callback_encode('film|',
                                                                      f'{temp_review_info[0]}|{temp_review_info[1]}|'
                                                                      f'{temp_review_info[2]}',
@@ -335,22 +335,13 @@ async def input_text(message: types.Message, state: FSMContext):
         reply_markup=keyboard)
 
 
-@dp.callback_query_handler(text='save_new_review', state=FormReview.author)
-async def save_new_review(call: types.CallbackQuery, state: FSMContext):
-    await state.finish()
+@dp.callback_query_handler(text='save_new_review')
+async def save_new_review(call: types.CallbackQuery):
     global temp_review_info
     film = await CinemaCard.get_card_from_csv(temp_review_info[1], temp_review_info[2])
     film.add_review_to_csv(temp_review_info[0], temp_review_info[3], CinemaCard.path_to_unseen_reviews)
     await call.message.edit_text('Рецензия успешно сохранена!')
     temp_review_info = []
-
-
-@dp.callback_query_handler(text='cancel_save_review', state=FormReview.author)
-async def cancel_save_review(call: types.CallbackQuery, state: FSMContext):
-    await state.finish()
-    global temp_review_info
-    temp_review_info = []
-    await call.message.edit_text('Рецензия не сохранена!')
 
 
 @dp.callback_query_handler(
@@ -846,8 +837,8 @@ async def catch_all_callbacks(call: types.CallbackQuery):
     if call.data.split(':')[0] == 'LCQ':
         # print('catch', call.data)
         await course_previous_next(call)
-        return
 
+        return
     if call.data in os.listdir(PHILOSOPHY_COURSE_PATH):
         await give_philo_topics(call)
         return
