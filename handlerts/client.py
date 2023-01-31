@@ -311,10 +311,14 @@ async def input_text(message: types.Message, state: FSMContext):
     temp_review_info = data
     await message.delete()
     await FormReview.author.set()
+    return_callback_data = await asyncio.create_task(callback_encode('film|',
+                                                                     f'{temp_review_info[0]}|{temp_review_info[1]}|'
+                                                                     f'{temp_review_info[2]}',
+                                                                     TEMP_ID_PATH))
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(
         types.InlineKeyboardButton(text="Сохранить", callback_data=f"save_new_review"),
-        types.InlineKeyboardButton(text="Отмена", callback_data="cancel_save_review"))
+        types.InlineKeyboardButton(text="Отмена", callback_data=return_callback_data))
     await message.answer(
         f"Окончательный вид рецензии:\n{message.text}\nСохранить данную рецензию?",
         reply_markup=keyboard)
