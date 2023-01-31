@@ -140,7 +140,6 @@ async def give_category(message: types.Message):
 @dp.message_handler(commands=['Кино'])
 async def give_cinema(message: types.Message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
-    print(message.from_user.id)
     directors = set(CinemaCard.cinema_cards_base['Режиссер'])
     if message.from_user.id in list(ADMINS.keys()):
         keyboard.add(types.InlineKeyboardButton(text='Добавить карточку фильма', callback_data='add_card'))
@@ -325,7 +324,6 @@ async def input_text(message: types.Message, state: FSMContext):
 async def save_new_review(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
     global temp_review_info
-    print(temp_review_info)
     film = await CinemaCard.get_card_from_csv(temp_review_info[1], temp_review_info[2])
     film.add_review_to_csv(temp_review_info[0], temp_review_info[3], CinemaCard.path_to_unseen_reviews)
     await call.message.edit_text('Рецензия успешно сохранена!')
@@ -415,7 +413,6 @@ async def rate_apply(call: types.CallbackQuery):
     user_id, film_name, director, rates = data.split('|')
     int_rates = [int(x) + 1 for x in rates]
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
-    print(int_rates)
     film.add_rating(int_rates)
     await call.message.answer(text='Оценка успешно добавлена!')
 
@@ -431,18 +428,15 @@ async def moderate_reviews(call: types.CallbackQuery):
                                                                      TEMP_ID_PATH))
     try:
         id_, text = film.get_next_unseen_review(iteration)
-        print(id_, text)
         apply_callback_data = await asyncio.create_task(callback_encode('apply|',
                                                                         f'{user_id}|{film_name}|{director}'
                                                                         f'|{iteration}|{id_}',
                                                                         TEMP_ID_PATH))
-        print(apply_callback_data)
         decline_callback_data = await asyncio.create_task(callback_encode('decline|',
                                                                           f'{user_id}|{film_name}|{director}'
                                                                           f'|{iteration}|{id_}',
                                                                           TEMP_ID_PATH))
     except IndexError as e:
-        print(e)
         end_keyboard = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton(text='Назад',
                                                                                    callback_data=return_callback_data))
         await call.message.answer(text=f'Больше рецензий нет.', reply_markup=end_keyboard)
@@ -459,11 +453,8 @@ async def moderate_reviews(call: types.CallbackQuery):
 @dp.callback_query_handler(lambda call: True if re.fullmatch(r'apply\|[^|]*|decline\|[^|]*', call.data) else False)
 async def apply_or_decline_review(call: types.CallbackQuery):
     _, data = call.data.split('|')
-    print(f'{_}|{data}')
     data = await asyncio.create_task(callback_decode(f'{_}|{data}', TEMP_ID_PATH))
-    print(data)
     user_id, film_name, director, iteration, id_ = data.split('|')
-    print(id_)
     iteration = int(iteration)
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
     if _ == 'apply':
@@ -547,13 +538,10 @@ async def accept_quote_and_author(message: types.Message, state: FSMContext):
     keyboard.add(
         types.InlineKeyboardButton(text="Сохранить", callback_data=f"save_new_quote"),
         types.InlineKeyboardButton(text="Отмена", callback_data="cancel_save_quote"))
-
-    print(temp_message_quote.data)
     await temp_message_quote.message.edit_text(
         f"Окончательный вид цитаты:\n{temp_message_quote.message.text}©{message.text}\nСохранить данную цитату?",
         reply_markup=keyboard)
     temp_message_quote.message.text = f'{temp_message_quote.message.text} ({message.text})'
-    print(temp_message_quote.message.text)
 
     await message.delete()
 
