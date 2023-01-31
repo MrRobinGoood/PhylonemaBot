@@ -164,7 +164,7 @@ fields = ('название', 'режиссера', 'реперные точки
 async def input_name(call: types.CallbackQuery):
     await Form_films.card.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_card"))
     global temp_film_info
     temp_film_info = []
     await call.message.edit_text(f"Введите название фильма:", reply_markup=keyboard)
@@ -177,6 +177,13 @@ class Form_films(StatesGroup):
     link = State()
 
 
+@dp.callback_query_handler(text='cancel_input_card', state=[Form_films.card, Form_films.director,
+                                                            Form_films.timecodes, Form_films.link])
+async def cancel_input_card(call: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await call.message.answer('Ввод отменен, пожалуйста, выберите категорию при помощи клавиатуры внизу экрана.')
+
+
 @dp.message_handler(state=Form_films.card)
 async def input_author(message: types.Message, state: FSMContext):
     await state.finish()
@@ -185,7 +192,7 @@ async def input_author(message: types.Message, state: FSMContext):
     await message.delete()
     await Form_films.director.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_card"))
     global temp_delete_message
     temp_delete_message = await message.answer(f"Введите режиссера:", reply_markup=keyboard)
 
@@ -198,7 +205,7 @@ async def input_timecodes(message: types.Message, state: FSMContext):
     await message.delete()
     await Form_films.timecodes.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_card"))
     global temp_delete_message
     temp_delete_message = await message.answer(f"Введите реперные точки:", reply_markup=keyboard)
 
@@ -211,7 +218,7 @@ async def input_link(message: types.Message, state: FSMContext):
     await message.delete()
     await Form_films.link.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_card"))
     global temp_delete_message
     temp_delete_message = await message.answer(f"Введите ссылку:", reply_markup=keyboard)
 
@@ -295,11 +302,15 @@ class FormReview(StatesGroup):
 async def input_review(call: types.CallbackQuery):
     await FormReview.text.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_review"))
     await call.message.edit_text(f"Введите рецензию:", reply_markup=keyboard)
     global temp_review_info
     temp_review_info = call.data
 
+@dp.callback_query_handler(text='cancel_input_review', state=[FormReview.text, FormReview.author])
+async def cancel_input_review(call: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await call.message.answer('Ввод отменен, пожалуйста, выберите категорию при помощи клавиатуры внизу экрана.')
 
 @dp.message_handler(state=FormReview.text)
 async def input_text(message: types.Message, state: FSMContext):
