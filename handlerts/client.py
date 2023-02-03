@@ -87,7 +87,6 @@ async def callback_encode(sep: str, input_str: str, path_to_json: str) -> str:
             opened_json = json.load(js_read)
             if input_str_id not in opened_json:
                 opened_json[input_str_id] = input_str
-
         with open(path_to_json, 'w') as js_write:
             json.dump(opened_json, js_write)
         result = input_str_id
@@ -141,12 +140,14 @@ async def give_category(message: types.Message):
 @dp.message_handler(commands=['Кино'])
 async def give_cinema(message: types.Message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
-    print(message.from_user.id)
     directors = set(CinemaCard.cinema_cards_base['Режиссер'])
     if message.from_user.id in list(ADMINS.keys()):
         keyboard.add(types.InlineKeyboardButton(text='Добавить карточку фильма', callback_data='add_card'))
     for i in directors:
-        keyboard.add(types.InlineKeyboardButton(text=i, callback_data=f'{i}|{message.from_user.id}'))
+        callback_data = await asyncio.create_task(callback_encode('director|',
+                                                                  f'{i}|{message.from_user.id}',
+                                                                  TEMP_ID_PATH))
+        keyboard.add(types.InlineKeyboardButton(text=i, callback_data=callback_data))
     _ = "В этом разделе можно найти информацию о фильмах, рассмотренных или планируемых к рассмотрению нашим киноклубом"
     __ = 'Выберите режиссера, фильмы которого вас интересуют'
     await message.answer(text=f'{_}.\n{__}:', reply_markup=keyboard)
@@ -155,6 +156,7 @@ async def give_cinema(message: types.Message):
 global temp_film_info
 global temp_delete_message
 global temp_review_info
+global temp_review_message
 fields = ('название', 'режиссера', 'реперные точки', 'ссылку')
 
 
@@ -162,7 +164,7 @@ fields = ('название', 'режиссера', 'реперные точки
 async def input_name(call: types.CallbackQuery):
     await Form_films.card.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_card"))
     global temp_film_info
     temp_film_info = []
     await call.message.edit_text(f"Введите название фильма:", reply_markup=keyboard)
@@ -175,6 +177,13 @@ class Form_films(StatesGroup):
     link = State()
 
 
+@dp.callback_query_handler(text='cancel_input_card', state=[Form_films.card, Form_films.director,
+                                                            Form_films.timecodes, Form_films.link])
+async def cancel_input_card(call: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await call.message.answer('Ввод отменен, пожалуйста, выберите категорию при помощи клавиатуры внизу экрана.')
+
+
 @dp.message_handler(state=Form_films.card)
 async def input_author(message: types.Message, state: FSMContext):
     await state.finish()
@@ -183,7 +192,7 @@ async def input_author(message: types.Message, state: FSMContext):
     await message.delete()
     await Form_films.director.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_card"))
     global temp_delete_message
     temp_delete_message = await message.answer(f"Введите режиссера:", reply_markup=keyboard)
 
@@ -196,7 +205,7 @@ async def input_timecodes(message: types.Message, state: FSMContext):
     await message.delete()
     await Form_films.timecodes.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_card"))
     global temp_delete_message
     temp_delete_message = await message.answer(f"Введите реперные точки:", reply_markup=keyboard)
 
@@ -209,7 +218,7 @@ async def input_link(message: types.Message, state: FSMContext):
     await message.delete()
     await Form_films.link.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_card"))
     global temp_delete_message
     temp_delete_message = await message.answer(f"Введите ссылку:", reply_markup=keyboard)
 
@@ -227,30 +236,54 @@ async def accept_quote_and_author(message: types.Message, state: FSMContext):
     await message.delete()
 
 
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'[^|]*\|[^|]*', call.data) else False)
+@dp.callback_query_handler(lambda call: True if re.fullmatch(r'director\|[^|]*', call.data) else False)
 async def give_films(call: types.CallbackQuery):
-    director, user_id = call.data.split('|')
+    callback_id = call.data
+    data = await asyncio.create_task(callback_decode(callback_id, TEMP_ID_PATH))
+    *_, director, user_id = data.split('|')
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     films = set(CinemaCard.cinema_cards_base['Название'].loc[CinemaCard.cinema_cards_base['Режиссер'] == director])
     for i in films:
-        keyboard.add(types.InlineKeyboardButton(text=i, callback_data=f'{i}|{call.data}'))
+        callback_data = await asyncio.create_task(callback_encode('film|',
+                                                                  f'{user_id}|{i}|{director}',
+                                                                  TEMP_ID_PATH))
+        keyboard.add(types.InlineKeyboardButton(text=i, callback_data=callback_data))
     await call.message.answer(text=f'Выберите фильм режиссера {director}', reply_markup=keyboard)
 
 
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'[^|]*\|[^|]*\|[^|]*', call.data) else False)
+@dp.callback_query_handler(lambda call: True if re.fullmatch(r'rate\|[^|]*', call.data) else False)
+async def rate_beginning(call: types.CallbackQuery):
+    callback_id = call.data
+    data = await asyncio.create_task(callback_decode(callback_id, TEMP_ID_PATH))
+    callback_data = await asyncio.create_task(callback_encode('rate proc|', f'{data}|', TEMP_ID_PATH))
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(types.InlineKeyboardButton(text='Продолжить', callback_data=callback_data))
+    text = 'Вам будут предложены 8 категорий, по каждой из которых можно поставить оценку от 1 до 10'
+    await call.message.answer(text=text, reply_markup=keyboard)
+
+
+@dp.callback_query_handler(lambda call: True if re.fullmatch(r'film\|[^|]*', call.data) else False)
 async def give_film_card(call: types.CallbackQuery):
-    film_name, director, user_id = call.data.split('|')
+    callback_id = call.data
+    data = await asyncio.create_task(callback_decode(callback_id, TEMP_ID_PATH))
+    user_id, film_name, director = data.split('|')
     user_id = int(user_id)
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
+    callback_keys = {'Оценить фильм': 'rate', 'Оставить рецензию': 'leave review', 'Показать рецензии': 'show reviews'}
     keyboard = types.InlineKeyboardMarkup(row_width=1)
+    data = f'{user_id}|{film_name}|{director}'
     if user_id in list(ADMINS.keys()):
+        callback_data = await asyncio.create_task(callback_encode('moderate|', data, TEMP_ID_PATH))
         keyboard.add(types.InlineKeyboardButton(text='Модерировать рецензии',
-                                                callback_data=f'moderate|{film_name}|{director}|{user_id}'))
-    keyboard.add(types.InlineKeyboardButton(text='Оценить фильм', callback_data=f'rate|{film_name}|{director}'),
-                 types.InlineKeyboardButton(text='Оставить рецензию',
-                                            callback_data=f'leave review|{user_id}|{film_name}|{director}'),
-                 types.InlineKeyboardButton(text='Показать рецензии',
-                                            callback_data=f'show reviews|{film_name}|{director}|{user_id}'))
+                                                callback_data=callback_data))
+    for i in callback_keys.keys():
+        if i == 'Показать рецензии':
+            data_reviews = f'{data}|0'
+            callback_data = await asyncio.create_task(
+                callback_encode(f'{callback_keys[i]}|', data_reviews, TEMP_ID_PATH))
+        else:
+            callback_data = await asyncio.create_task(callback_encode(f'{callback_keys[i]}|', data, TEMP_ID_PATH))
+        keyboard.add(types.InlineKeyboardButton(text=i, callback_data=callback_data))
     text = f'{film.name}\n{film.director}\n{film.timecodes}\nСсылка на просмотр фильма: {film.link}'
     rating = f'Оценки:\n'
     for i in film.rating.keys():
@@ -260,85 +293,90 @@ async def give_film_card(call: types.CallbackQuery):
 
 class FormReview(StatesGroup):
     text = State()
-    author = State()
 
 
 @dp.callback_query_handler(
-    lambda call: True if re.fullmatch(r'leave review\|[^|]*\|[^|]*\|[^|]*', call.data) else False)
-async def input_quote(call: types.CallbackQuery):
+    lambda call: True if re.fullmatch(r'leave review\|[^|]*', call.data) else False)
+async def input_review(call: types.CallbackQuery):
     await FormReview.text.set()
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input"))
+    keyboard.add(types.InlineKeyboardButton(text="Отменить ввод", callback_data="cancel_input_review"))
     await call.message.edit_text(f"Введите рецензию:", reply_markup=keyboard)
     global temp_review_info
-    temp_review_info = call.data.split('|')[1:]
+    temp_review_info = call.data
+
+
+@dp.callback_query_handler(text='cancel_input_review', state=FormReview.text)
+async def cancel_input_review(call: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await call.message.answer('Ввод отменен, пожалуйста, выберите категорию при помощи клавиатуры внизу экрана.')
 
 
 @dp.message_handler(state=FormReview.text)
 async def input_text(message: types.Message, state: FSMContext):
     await state.finish()
     global temp_review_info
-    temp_review_info.append(message.text)
+    data = await asyncio.create_task(callback_decode(temp_review_info, TEMP_ID_PATH))
+    data = data.split('|')
+    data.append(message.text)
+    temp_review_info = data
     await message.delete()
-    await FormReview.author.set()
-    global temp_delete_message
-    await temp_delete_message.delete()
+    return_callback_data = await asyncio.create_task(callback_encode('film|',
+                                                                     f'{temp_review_info[0]}|{temp_review_info[1]}|'
+                                                                     f'{temp_review_info[2]}',
+                                                                     TEMP_ID_PATH))
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(
         types.InlineKeyboardButton(text="Сохранить", callback_data=f"save_new_review"),
-        types.InlineKeyboardButton(text="Отмена", callback_data="cancel_save_review"))
-    await temp_message_quote.message.edit_text(
+        types.InlineKeyboardButton(text="Отмена", callback_data=return_callback_data))
+    await message.answer(
         f"Окончательный вид рецензии:\n{message.text}\nСохранить данную рецензию?",
         reply_markup=keyboard)
-    await message.delete()
 
 
 @dp.callback_query_handler(text='save_new_review')
-async def save_new_review(call: types.CallbackQuery, state: FSMContext):
+async def save_new_review(call: types.CallbackQuery):
     global temp_review_info
     film = await CinemaCard.get_card_from_csv(temp_review_info[1], temp_review_info[2])
-    film.add_review_to_csv(temp_review_info[0], temp_review_info[4], CinemaCard.path_to_unseen_reviews)
+    film.add_review_to_csv(temp_review_info[0], temp_review_info[3], CinemaCard.path_to_unseen_reviews)
     await call.message.edit_text('Рецензия успешно сохранена!')
     temp_review_info = []
 
 
-@dp.callback_query_handler(text='cancel_save_review')
-async def cancel_save_review(call: types.CallbackQuery, state: FSMContext):
-    global temp_review_info
-    await call.message.edit_text('Рецензия не сохранена!')
-    temp_review_info = []
-
-
 @dp.callback_query_handler(
-    lambda call: True if re.fullmatch(r'show reviews\|[^|]*\|[^|]*\|[^|]*', call.data) else False)
+    lambda call: True if re.fullmatch(r'show reviews\|[^|]*', call.data) else False)
 async def show_reviews(call: types.CallbackQuery):
-    *_, film_name, director, user_id = call.data.split('|')
+    data = await asyncio.create_task(callback_decode(call.data, TEMP_ID_PATH))
+    user_id, film_name, director, iteration = data.split('|')
+    iteration = int(iteration)
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
+    return_callback_data = await asyncio.create_task(callback_encode('film|',
+                                                                     f'{user_id}|{film_name}|{director}',
+                                                                     TEMP_ID_PATH))
+    next_callback_data = await asyncio.create_task(callback_encode('show reviews|',
+                                                                   f'{user_id}|{film_name}|{director}|{iteration + 1}',
+                                                                   TEMP_ID_PATH))
     try:
-        id_, text = film.get_next_applied_review()
-    except StopIteration:
+        id_, text = film.get_next_applied_review(iteration)
+    except IndexError:
         end_keyboard = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton(text='Назад',
-                                                                                   callback_data=f'{film_name}|{director}|{user_id}'))
+                                                                                   callback_data=return_callback_data))
         await call.message.answer(text=f'Больше рецензий нет.', reply_markup=end_keyboard)
     else:
         keyboard = types.InlineKeyboardMarkup(row_width=1)
         keyboard.add(types.InlineKeyboardButton(text='Показать следующую',
-                                                callback_data=f'show reviews|{film_name}|{director}'),
+                                                callback_data=next_callback_data),
                      types.InlineKeyboardButton(text='Назад',
-                                                callback_data=f'{film_name}|{director}'))
-        await call.message.answer(text=f'Рецензия пользователя{id_}:\n{text}', reply_markup=keyboard)
+                                                callback_data=return_callback_data))
+        await call.message.answer(text=f'Рецензия пользователя {id_}:\n{text}', reply_markup=keyboard)
 
 
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'rate\|[^|]*\|[^|]*', call.data) else False)
-async def rate_beginning(call: types.CallbackQuery):
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton(text='Продолжить', callback_data=f'{call.data}|'))
-    text = 'Вам будут предложены 8 категорий, по каждой из которых можно поставить оценку от 1 до 10'
-    await call.message.answer(text=text, reply_markup=keyboard)
-
-
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'rate\|[^|]*\|[^|]*\|[^|]*', call.data) else False)
+@dp.callback_query_handler(lambda call: True if re.fullmatch(r'rate proc\|[^|]*', call.data) else False)
 async def rate_processing(call: types.CallbackQuery):
+    callback_id = call.data
+    data = await asyncio.create_task(callback_decode(callback_id, TEMP_ID_PATH))
+    user_id, film_name, director, rates = data.split('|')
+    user_id = int(user_id)
     categories = ('Философская глубина',
                   'Острота постановки проблемы',
                   'Наличие категориального аппарата',
@@ -347,66 +385,91 @@ async def rate_processing(call: types.CallbackQuery):
                   'Раскрытие мировоззрения автора',
                   'Художественная глубина',
                   'Общее впечатление')
-    _, film_name, director, rates = call.data.split('|')
     length = len(rates)
     if length == 8:
         text = 'Ваши оценки:\n'
         for i in categories:
-            text = f'{text}{i}: {rates[categories.index(i)]}\n'
+            text = f'{text}{i}: {int(rates[categories.index(i)]) + 1}\n'
+        callback_data = await asyncio.create_task(callback_encode('rate apply|',
+                                                                  f'{user_id}|{film_name}|{director}|{rates}',
+                                                                  TEMP_ID_PATH))
+        retry_callback_data = await asyncio.create_task(callback_encode('rate proc|',
+                                                                        f'{user_id}|{film_name}|{director}|',
+                                                                        TEMP_ID_PATH))
         keyboard = types.InlineKeyboardMarkup(row_width=1)
-        keyboard.add(types.InlineKeyboardButton(text='Продолжить', callback_data=f'{call.data}|apply'),
+        keyboard.add(types.InlineKeyboardButton(text='Продолжить', callback_data=callback_data),
                      types.InlineKeyboardButton(text='Выставить заново',
-                                                callback_data=f'rate|{film_name}|{director}|'))
+                                                callback_data=retry_callback_data))
         await call.message.answer(text=text, reply_markup=keyboard)
     else:
         keyboard = types.InlineKeyboardMarkup(row_width=3)
         for i in range(10):
-            keyboard.add(types.InlineKeyboardButton(text=f'{i + 1}', callback_data=f'{call.data}{i}'))
+            callback_data = await asyncio.create_task(callback_encode('rate proc|',
+                                                                      f'{user_id}|{film_name}|{director}|{rates}{i}',
+                                                                      TEMP_ID_PATH))
+            keyboard.add(types.InlineKeyboardButton(text=f'{i + 1}', callback_data=callback_data))
         await call.message.answer(text=f'{categories[length]}', reply_markup=keyboard)
 
 
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'rate\|[^|]*\|[^|]*\|[^|]*\|apply', call.data) else False)
+@dp.callback_query_handler(lambda call: True if re.fullmatch(r'rate apply\|[^|]*', call.data) else False)
 async def rate_apply(call: types.CallbackQuery):
-    _, film_name, director, rates, __ = call.data.split('|')
+    callback_id = call.data
+    data = await asyncio.create_task(callback_decode(callback_id, TEMP_ID_PATH))
+    user_id, film_name, director, rates = data.split('|')
     int_rates = [int(x) + 1 for x in rates]
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
     film.add_rating(int_rates)
     await call.message.answer(text='Оценка успешно добавлена!')
 
 
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'moderate\|[^|]*\|[^|]*\|[^|]*', call.data) else False)
+@dp.callback_query_handler(lambda call: True if re.fullmatch(r'moderate\|[^|]*', call.data) else False)
 async def moderate_reviews(call: types.CallbackQuery):
-    *_, film_name, director, user_id = call.data.split('|')
+    data = await asyncio.create_task(callback_decode(call.data, TEMP_ID_PATH))
+    user_id, film_name, director, *_ = data.split('|')
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
+    return_callback_data = await asyncio.create_task(callback_encode('film|',
+                                                                     f'{user_id}|{film_name}|{director}',
+                                                                     TEMP_ID_PATH))
     try:
-        id_, text = film.get_next_unseen_review()
-    except StopIteration:
+        id_, text = film.get_next_unseen_review(0)
+        apply_callback_data = await asyncio.create_task(callback_encode('apply|',
+                                                                        f'{user_id}|{film_name}|{director}'
+                                                                        f'|{id_}',
+                                                                        TEMP_ID_PATH))
+        decline_callback_data = await asyncio.create_task(callback_encode('decline|',
+                                                                          f'{user_id}|{film_name}|{director}'
+                                                                          f'|{id_}',
+                                                                          TEMP_ID_PATH))
+    except IndexError as e:
         end_keyboard = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton(text='Назад',
-                                                                                   callback_data=f'{film_name}|{director}|{user_id}'))
-        await call.message.answer(text=f'Нерассмотренных рецензий нет.', reply_markup=end_keyboard)
+                                                                                   callback_data=return_callback_data))
+        await call.message.answer(text=f'Больше рецензий нет.', reply_markup=end_keyboard)
     else:
         keyboard = types.InlineKeyboardMarkup(row_width=1)
         keyboard.add(types.InlineKeyboardButton(text='Одобрить рецензию и показать следующую',
-                                                callback_data=f'apply|{film_name}|{director}|{user_id}|{id_}'),
+                                                callback_data=apply_callback_data),
                      types.InlineKeyboardButton(text='Отклонить рецензию и показать следующую',
-                                                callback_data=f'decline|{film_name}|{director}|{user_id}|{id_}'),
-                     types.InlineKeyboardButton(text='Назад',
-                                                callback_data=f'{film_name}|{director}|{user_id}'))
+                                                callback_data=decline_callback_data),
+                     types.InlineKeyboardButton(text='Назад', callback_data=return_callback_data))
         await call.message.answer(text=f'Рецензия пользователя {id_}:\n{text}', reply_markup=keyboard)
 
 
-@dp.callback_query_handler(lambda call: True if re.fullmatch(r'apply\|[^|]*\|[^|]*\|[^|]*\|[^|]*|decline\|[^|]*\|['
-                                                             r'^|]*\|[^|]*\|[^|]*', call.data) else False)
+@dp.callback_query_handler(lambda call: True if re.fullmatch(r'apply\|[^|]*|decline\|[^|]*', call.data) else False)
 async def apply_or_decline_review(call: types.CallbackQuery):
-    _, film_name, director, user_id, id_ = call.data.split('|')
+    _, data = call.data.split('|')
+    data = await asyncio.create_task(callback_decode(f'{_}|{data}', TEMP_ID_PATH))
+    user_id, film_name, director, id_ = data.split('|')
     film = await asyncio.create_task(CinemaCard.get_card_from_csv(film_name, director))
     if _ == 'apply':
-        film.apply_review(id_)
+        await asyncio.create_task(film.apply_review(id_))
     else:
-        film.decline_review(id_)
+        await asyncio.create_task(film.decline_review(id_))
     keyboard = types.InlineKeyboardMarkup(row_width=1)
+    callback_data = await asyncio.create_task(callback_encode('moderate|',
+                                                              f'{user_id}|{film_name}|{director}',
+                                                              TEMP_ID_PATH))
     keyboard.add(types.InlineKeyboardButton(text='Продолжить',
-                                            callback_data=f'moderate|{film_name}|{director}|{user_id}'))
+                                            callback_data=callback_data))
     await call.message.answer(text=f'Успешно!', reply_markup=keyboard)
 
 
@@ -477,13 +540,10 @@ async def accept_quote_and_author(message: types.Message, state: FSMContext):
     keyboard.add(
         types.InlineKeyboardButton(text="Сохранить", callback_data=f"save_new_quote"),
         types.InlineKeyboardButton(text="Отмена", callback_data="cancel_save_quote"))
-
-    print(temp_message_quote.data)
     await temp_message_quote.message.edit_text(
         f"Окончательный вид цитаты:\n{temp_message_quote.message.text}©{message.text}\nСохранить данную цитату?",
         reply_markup=keyboard)
     temp_message_quote.message.text = f'{temp_message_quote.message.text} ({message.text})'
-    print(temp_message_quote.message.text)
 
     await message.delete()
 
@@ -662,6 +722,7 @@ async def give_course_pages(call, page_params, attribute_and_path):
         if attribute == 'c':
             keyboard.add(
                 types.InlineKeyboardButton(text=theme_path, callback_data=await callback_encode('LCQ:',theme_path,TEMP_ID_PATH)))
+
     if attribute == 'l':
         for i in range(len(urls)):
             keyboard.add(types.InlineKeyboardButton(text=selected_themes[i], url=urls[i]))
@@ -775,6 +836,7 @@ async def catch_all_callbacks(call: types.CallbackQuery):
             # print('catch', call.data)
             await course_previous_next(call)
             return
+
 
         if decoded.split(':')[0] in os.listdir(PHILOSOPHY_COURSE_PATH):
             await give_philo_topics(call)
