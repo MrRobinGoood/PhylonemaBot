@@ -2,7 +2,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemo
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 b0 = KeyboardButton('/Кино')
-b1 = KeyboardButton('/Зачем_ты_нужен?')
+b1 = KeyboardButton('/Инструкция')
 b2 = KeyboardButton('/Цитаты')
 b3 = KeyboardButton('/Курс_философии')
 b4 = KeyboardButton('/Литература')
