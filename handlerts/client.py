@@ -100,10 +100,10 @@ async def callback_decode(str_id: str, path_to_json: str) -> str:
     try:
         with open(path_to_json) as js_read:
             opened_json = json.load(js_read)
-            result = str(opened_json[str_id])
+            result = opened_json[str_id]
     except OSError as e:
         print(e)
-    return result
+    return str(result)
 
 
 async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
@@ -717,11 +717,12 @@ async def give_course_pages(call, page_params, attribute_and_path):
 
     for theme_path in selected_themes:
         if attribute == 'os.listdir':
-            print(theme_path)
-            keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0], callback_data=theme_path))
+            keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0],
+                                                    callback_data= await callback_encode('LCQ:',theme_path,TEMP_ID_PATH)))
         if attribute == 'c':
-            print('c', theme_path)
-            keyboard.add(types.InlineKeyboardButton(text=theme_path, callback_data=theme_path))
+            keyboard.add(
+                types.InlineKeyboardButton(text=theme_path, callback_data=await callback_encode('LCQ:',theme_path,TEMP_ID_PATH)))
+
     if attribute == 'l':
         for i in range(len(urls)):
             keyboard.add(types.InlineKeyboardButton(text=selected_themes[i], url=urls[i]))
@@ -735,8 +736,6 @@ async def give_course_pages(call, page_params, attribute_and_path):
         types.InlineKeyboardButton(text='Вперед',
                                    callback_data=await callback_encode('LCQ:', f'n:{page}:{attribute}:{path}',
                                                                        TEMP_ID_PATH)))
-    print(f'p:{page}:{attribute}:{path}')
-    print('размер', utf8len(f'p:{page}:{attribute}:{path}'))
 
     if type(call) != types.CallbackQuery:
         # в данном случае call это переданный message
@@ -760,9 +759,6 @@ def change_page_params(page):
 
 
 async def course_previous_next(call):
-    print(call.data)
-    print(await callback_decode(call.data, TEMP_ID_PATH))
-
     call_data_dec = await callback_decode(call.data, TEMP_ID_PATH)
     pressed_button = call_data_dec.split(':')[0]
     page = int(call_data_dec.split(':')[1])
@@ -832,23 +828,30 @@ async def list_of_literature(call: types.CallbackQuery):
 async def catch_all_callbacks(call: types.CallbackQuery):
     if call.data.split(':')[0] == 'LCQ':
         # print('catch', call.data)
-        await course_previous_next(call)
+        # print('tt', await callback_decode(call.data, TEMP_ID_PATH))
+        # print('tt1', type(await callback_decode(call.data, TEMP_ID_PATH)))
+        decoded = await callback_decode(call.data, TEMP_ID_PATH)
 
-        return
-    if call.data in os.listdir(PHILOSOPHY_COURSE_PATH):
-        await give_philo_topics(call)
-        return
+        if  decoded.split(':')[0] in ['p', 'n']:
+            # print('catch', call.data)
+            await course_previous_next(call)
+            return
 
-    if call.data in os.listdir(LITERATURE_COURSE_PATH):
-        await give_lit_topics(call)
-        return
+
+        if decoded.split(':')[0] in os.listdir(PHILOSOPHY_COURSE_PATH):
+            await give_philo_topics(call)
+            return
+
+        if decoded.split(':')[0] in os.listdir(LITERATURE_COURSE_PATH):
+            await give_lit_topics(call)
+            return
 
     await give_text_and_picture(call)
 
 
 async def give_philo_topics(call):
     print('def philo topic', call.data)
-    theme_file = call.data
+    theme_file = await callback_decode(call.data, TEMP_ID_PATH)
     attribute = 'c'
     # ниже переписать недочеты
     await give_course_pages(call, DEFAULT_PAGES_PARAMS, f'{attribute}:{theme_file}')
@@ -856,7 +859,7 @@ async def give_philo_topics(call):
 
 async def give_lit_topics(call):
     print('def lit topic', call.data)
-    theme_file = call.data
+    theme_file = await callback_decode(call.data, TEMP_ID_PATH)
     attribute = 'l'
     # ниже переписать недочеты
     await give_course_pages(call, DEFAULT_PAGES_PARAMS, f'{attribute}:{theme_file}')
@@ -864,10 +867,11 @@ async def give_lit_topics(call):
 
 async def give_text_and_picture(call):
     print('give text and picture')
+    call_data_dec = await callback_decode(call.data,TEMP_ID_PATH)
     for theme_name in os.listdir(PHILOSOPHY_COURSE_PATH):
         theme = await open_file(theme_name, 'philosophy_course', '<new>')
         for topic in theme:
-            if call.data == get_header(topic):
+            if call_data_dec == get_header(topic):
                 try:
                     path = f'resources/pictures/{call.data.strip()}.png'
                     photo = open(path, 'rb')
