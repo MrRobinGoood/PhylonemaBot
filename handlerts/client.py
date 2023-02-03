@@ -867,19 +867,21 @@ async def give_lit_topics(call):
 
 async def give_text_and_picture(call):
     print('give text and picture')
-    call_data_dec = await callback_decode(call.data,TEMP_ID_PATH)
+    call_data_dec = await callback_decode(call.data, TEMP_ID_PATH)
     for theme_name in os.listdir(PHILOSOPHY_COURSE_PATH):
         theme = await open_file(theme_name, 'philosophy_course', '<new>')
         for topic in theme:
             if call_data_dec == get_header(topic):
                 try:
-                    path = f'resources/pictures/{call.data.strip()}.png'
+                    path = f'resources/pictures/{call_data_dec.strip()}.png'
+                    print(path)
                     photo = open(path, 'rb')
+
                     await call.message.answer_photo(photo, caption=topic)
                 except:
                     try:
                         print("Слишком большой caption")
-                        path = f'resources/pictures/{call.data.strip()}.png'
+                        path = f'resources/pictures/{call_data_dec.strip()}.png'
                         photo = open(path, 'rb')
                         await call.message.answer_photo(photo)
                         await call.message.answer(topic)
