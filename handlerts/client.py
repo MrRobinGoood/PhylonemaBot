@@ -112,18 +112,21 @@ async def format_quotes_from_list(quotes_list: List[str]) -> List[str]:
     return result
 
 
-@dp.message_handler(commands=['start', 'help'])
+@dp.message_handler(commands=['start', 'старт', 'Start', 'Старт'])
 async def command_start(message: types.Message):
     try:
         await bot.send_message(message.from_user.id,
                                'Привет, я бот Филонема👋. Моё имя образовано от двух слов - философия и синема(кино).',
+                               reply_markup=keyboards_client)
+        await bot.send_message(message.from_user.id,
+                               'Чтобы перезапустить бота или заново открыть клавиатуру с функциями напишите в чат /старт.\nЧтобы открыть инструкцию, вы можете воспользоваться клавиатурой или написать в чат /помощь.',
                                reply_markup=keyboards_client)
         await message.delete()
     except:
         await message.reply('Общение с ботом через ЛС, напишите ему:\nt.me/PhilonemaBot')
 
 
-@dp.message_handler(commands='Инструкция')
+@dp.message_handler(commands=['Инструкция', 'инструкция', 'Помощь', 'помощь', 'help', 'Help'])
 async def manual(message: types.Message):
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Функционал бота", callback_data='manual0'))
@@ -133,7 +136,8 @@ async def manual(message: types.Message):
     keyboard.add(types.InlineKeyboardButton(text="Раздел курс философии", callback_data='manual4'))
     keyboard.add(types.InlineKeyboardButton(text="Раздел словарь", callback_data='manual5'))
     keyboard.add(types.InlineKeyboardButton(text="Раздел общая информация", callback_data='manual6'))
-    await message.answer("Инструкция бота\n", reply_markup=keyboard)
+    await message.answer("Инструкция по использованию бота\n", reply_markup=keyboard)
+
 
 @dp.callback_query_handler(text=['manual0', 'manual1', 'manual2', 'manual3', 'manual4', 'manual5', 'manual6'])
 async def manual_catch(call: types.CallbackQuery):
@@ -162,10 +166,6 @@ async def manual_catch(call: types.CallbackQuery):
     elif call.data == 'manual6':
         mes = 'Раздел общая информация\nДля получения ссылки на чат киноклуба нажмите на кнопку «Киноклуб “Философия кино”» под сообщением. Для получения ссылок на использованную литературу нажмите на кнопку «Список литературы» под сообщением. Для получения информации о разработчиках бота нажмите на кнопку «Разработчики бота» под сообщением'
         await call.message.answer(mes)
-
-
-
-
 
 
 @dp.message_handler(commands=['Кино', "Цитаты", "Курс_философии", "Литература", 'Общая_информация'])
@@ -763,10 +763,12 @@ async def give_course_pages(call, page_params, attribute_and_path):
     for theme_path in selected_themes:
         if attribute == 'os.listdir':
             keyboard.add(types.InlineKeyboardButton(text=os.path.splitext(theme_path)[0],
-                                                    callback_data= await callback_encode('LCQ:',theme_path,TEMP_ID_PATH)))
+                                                    callback_data=await callback_encode('LCQ:', theme_path,
+                                                                                        TEMP_ID_PATH)))
         if attribute == 'c':
             keyboard.add(
-                types.InlineKeyboardButton(text=theme_path, callback_data=await callback_encode('LCQ:',theme_path,TEMP_ID_PATH)))
+                types.InlineKeyboardButton(text=theme_path,
+                                           callback_data=await callback_encode('LCQ:', theme_path, TEMP_ID_PATH)))
 
     if attribute == 'l':
         for i in range(len(urls)):
@@ -855,7 +857,7 @@ async def cinema_club(call: types.CallbackQuery):
 @dp.callback_query_handler(text="developers")
 async def developers(call: types.CallbackQuery):
     await call.message.answer(
-        "Данный бот был разработан студентами СамГТУ 2-ИАИТ-109😎\nСпециально для Студактива \"Знание\", Киноклуба \"Философия кино\"\nУчастники и разработчики:\n👉Бартенев А.В\n👉Авдошин М.А\n👉Малышев М.А.\n👉Мурыгин Д.А.\n👉Строкин И.А\n👉Пасюга А.А.\n👉Ермолин К.П.\n👉Рябова Д.А\n👉Плюхин В.К.")
+        "Данный бот был разработан студентами СамГТУ 2-ИАИТ-109😎\nСпециально для Студактива \"Знание\", Киноклуба \"Философия кино\"\nУчастники и разработчики:\n👉Бартенев А.В\n👉Авдошин М.А\n👉Малышев М.А.\n👉Мурыгин Д.А.\n👉Строкин И.А\n👉Пасюга А.А.\n👉Ермолин К.П.\n👉Рябова Д.А\n👉Плюхин В.К.\n(©2023г.)")
 
 
 @dp.callback_query_handler(text="list_of_literature")
@@ -877,11 +879,10 @@ async def catch_all_callbacks(call: types.CallbackQuery):
         # print('tt1', type(await callback_decode(call.data, TEMP_ID_PATH)))
         decoded = await callback_decode(call.data, TEMP_ID_PATH)
 
-        if  decoded.split(':')[0] in ['p', 'n']:
+        if decoded.split(':')[0] in ['p', 'n']:
             # print('catch', call.data)
             await course_previous_next(call)
             return
-
 
         if decoded.split(':')[0] in os.listdir(PHILOSOPHY_COURSE_PATH):
             await give_philo_topics(call)
@@ -933,6 +934,7 @@ async def give_text_and_picture(call):
                     except:
                         print("Не нашёл картинку")
                         await call.message.answer(topic)
+
 
 def register_handler_client(dp: Dispatcher):
     dp.register_message_handler(command_start, commands=['start', 'help'])
